@@ -8,7 +8,3 @@ parameters:
   ignoreErrors:
     # new static() is a best practice in Drupal, so we cannot fix that.
     - "#^Unsafe usage of new static#"
-    # Batch API callbacks are static, so they can't use dependency injection.
-    -
-      message: "#Drupal calls should be avoided in classes, use dependency injection instead#"
-      path: src/ReportGenerator.php

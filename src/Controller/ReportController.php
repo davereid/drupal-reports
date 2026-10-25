@@ -72,8 +72,7 @@ class ReportController extends ControllerBase {
   /**
    * Displays a report.
    */
-  public function view(Request $request, string $report): array {
-    $report = $this->getReport($request, $report);
+  public function view(Request $request, ReportInterface $report): array {
     $definition = $report->getPluginDefinition();
     $sheets = $report->getSheets();
     $sheet = $this->getSheet($request, $report);
@@ -229,8 +228,7 @@ class ReportController extends ControllerBase {
   /**
    * Downloads a report sheet as a CSV file.
    */
-  public function csv(Request $request, string $report): Response {
-    $report = $this->getReport($request, $report);
+  public function csv(Request $request, ReportInterface $report): Response {
     $sheet = $this->getSheet($request, $report);
     $filename = str_replace(':', '-', $report->getPluginId()) . ($sheet === 'default' ? '' : "-$sheet") . '.csv';
 
@@ -256,8 +254,7 @@ class ReportController extends ControllerBase {
   /**
    * Downloads all sheets of a generated report as an Excel file.
    */
-  public function xlsx(Request $request, string $report): Response {
-    $report = $this->getReport($request, $report);
+  public function xlsx(Request $request, ReportInterface $report): Response {
     $headers = ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     $uri = $report instanceof GeneratedReportInterface ? $this->reportStorage->getSpreadsheetFile($report) : NULL;
     if ($uri) {
@@ -290,8 +287,7 @@ class ReportController extends ControllerBase {
   /**
    * Generates a report with the Batch API.
    */
-  public function generate(Request $request, string $report): Response|array {
-    $report = $this->getReport($request, $report);
+  public function generate(Request $request, ReportInterface $report): Response|array {
     assert($report instanceof GeneratedReportInterface);
     try {
       batch_set($this->reportGenerator->buildBatch($report));
@@ -308,41 +304,23 @@ class ReportController extends ControllerBase {
   /**
    * Gets the title of a report.
    */
-  public function title(string $report): string|\Stringable {
-    return $this->reportManager->getDefinition($report)['label'];
+  public function title(ReportInterface $report): string|\Stringable {
+    return $report->getPluginDefinition()['label'];
   }
 
   /**
    * Checks access to a report.
    */
-  public function access(AccountInterface $account, string $report): AccessResultInterface {
-    if (!$this->reportManager->hasDefinition($report)) {
-      // Let the controller return a 404.
-      return AccessResult::allowed();
-    }
-    return $this->reportManager->createInstance($report)->access($account);
+  public function access(AccountInterface $account, ReportInterface $report): AccessResultInterface {
+    return $report->access($account);
   }
 
   /**
    * Checks access to generating a report.
    */
-  public function generateAccess(AccountInterface $account, string $report): AccessResultInterface {
-    if (!$this->reportManager->hasDefinition($report)) {
-      return AccessResult::forbidden();
-    }
-    $instance = $this->reportManager->createInstance($report);
-    return AccessResult::allowedIf($instance instanceof GeneratedReportInterface && $this->reportManager->isUsable($instance))
-      ->andIf($instance->access($account));
-  }
-
-  /**
-   * Creates a report with the configuration from the query string.
-   */
-  protected function getReport(Request $request, string $id): ReportInterface {
-    if (!$this->reportManager->hasDefinition($id)) {
-      throw new NotFoundHttpException();
-    }
-    return $this->reportManager->createInstance($id, $request->query->all('config'));
+  public function generateAccess(AccountInterface $account, ReportInterface $report): AccessResultInterface {
+    return AccessResult::allowedIf($report instanceof GeneratedReportInterface && $this->reportManager->isUsable($report))
+      ->andIf($report->access($account));
   }
 
   /**
@@ -412,7 +390,7 @@ class ReportController extends ControllerBase {
     )->toRenderable();
     $build['generate']['#attributes']['class'] = $stale || empty($status['completed']) ? ['button', 'button--primary'] : ['button'];
     // Reports with options have View and Regenerate buttons in their form.
-    $build['generate']['#access'] = !$report instanceof PluginFormInterface && $this->generateAccess($this->currentUser(), $report->getPluginId())->isAllowed();
+    $build['generate']['#access'] = !$report instanceof PluginFormInterface && $this->generateAccess($this->currentUser(), $report)->isAllowed();
     return $build;
   }
 

@@ -10,6 +10,7 @@ use Drupal\entity_test\Entity\EntityTestMulRevPub;
 use Drupal\entity_test\EntityTestHelper;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\file\Entity\File;
 use Drupal\filter\Entity\FilterFormat;
 use Drupal\helper\Utility;
 use Drupal\KernelTests\KernelTestBase;
@@ -18,6 +19,9 @@ use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\ReportGenerator;
 use Drupal\reports\ReportManager;
 use Drupal\reports\ReportStorage;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\Tests\field\Traits\EntityReferenceFieldCreationTrait;
 use OpenSpout\Reader\XLSX\Reader;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -28,6 +32,8 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[Group('reports')]
 #[RunTestsInSeparateProcesses]
 class GeneratedReportTest extends KernelTestBase {
+
+  use EntityReferenceFieldCreationTrait;
 
   /**
    * {@inheritdoc}
@@ -72,12 +78,13 @@ class GeneratedReportTest extends KernelTestBase {
     // fields, including entity_test's other types with text base fields.
     foreach ($this->container->get('entity_field.manager')->getFieldMap() as $entity_type_id => $fields) {
       $types = array_column($fields, 'type');
-      if (str_starts_with($entity_type_id, 'entity_test') && array_intersect($types, ['link', 'text', 'text_long', 'text_with_summary', 'custom'])) {
+      $scanned = ['link', 'text', 'text_long', 'text_with_summary', 'custom'];
+      if (str_starts_with($entity_type_id, 'entity_test') && array_intersect($types, $scanned)) {
         $this->installEntitySchema($entity_type_id);
       }
     }
     $this->installEntitySchema('entity_test');
-    $this->installConfig(['filter', 'reports']);
+    $this->installConfig(['system', 'filter', 'reports']);
     $this->storage = $this->container->get(ReportStorage::class);
   }
 
@@ -87,8 +94,18 @@ class GeneratedReportTest extends KernelTestBase {
   public function testAbsoluteUrls(): void {
     FilterFormat::create(['format' => 'html', 'name' => 'HTML'])->save();
     foreach (['field_link' => 'link', 'field_text' => 'text_long'] as $name => $type) {
-      FieldStorageConfig::create(['field_name' => $name, 'entity_type' => 'entity_test', 'type' => $type, 'cardinality' => -1])->save();
-      FieldConfig::create(['field_name' => $name, 'entity_type' => 'entity_test', 'bundle' => 'entity_test', 'label' => $name])->save();
+      FieldStorageConfig::create([
+        'field_name' => $name,
+        'entity_type' => 'entity_test',
+        'type' => $type,
+        'cardinality' => -1,
+      ])->save();
+      FieldConfig::create([
+        'field_name' => $name,
+        'entity_type' => 'entity_test',
+        'bundle' => 'entity_test',
+        'label' => $name,
+      ])->save();
     }
     EntityTest::create([
       'name' => 'First',
@@ -199,10 +216,22 @@ class GeneratedReportTest extends KernelTestBase {
     $this->container->get('kernel')->rebuildContainer();
     $this->storage = $this->container->get(ReportStorage::class);
 
-    FieldStorageConfig::create(['field_name' => 'field_link', 'entity_type' => 'entity_test_mulrevpub', 'type' => 'link'])->save();
-    FieldConfig::create(['field_name' => 'field_link', 'entity_type' => 'entity_test_mulrevpub', 'bundle' => 'entity_test_mulrevpub'])->save();
+    FieldStorageConfig::create([
+      'field_name' => 'field_link',
+      'entity_type' => 'entity_test_mulrevpub',
+      'type' => 'link',
+    ])->save();
+    FieldConfig::create([
+      'field_name' => 'field_link',
+      'entity_type' => 'entity_test_mulrevpub',
+      'bundle' => 'entity_test_mulrevpub',
+    ])->save();
     foreach (['Kept', 'Trashed'] as $name) {
-      $entity = EntityTestMulRevPub::create(['name' => $name, 'status' => 1, 'field_link' => ['uri' => "https://example.com/$name"]]);
+      $entity = EntityTestMulRevPub::create([
+        'name' => $name,
+        'status' => 1,
+        'field_link' => ['uri' => "https://example.com/$name"],
+      ]);
       $entity->save();
     }
     // With Trash enabled for the entity type, deleting moves it to the trash.
@@ -255,6 +284,71 @@ class GeneratedReportTest extends KernelTestBase {
       $this->assertSame(RequirementSeverity::Error, $this->container->get(ReportManager::class)->getRequirements($report)['reports_storage']['severity'], $directory);
       $this->assertFalse($this->container->get(ReportManager::class)->isUsable($report), $directory);
     }
+  }
+
+  /**
+   * Tests the unused files report.
+   */
+  public function testUnusedFiles(): void {
+    $this->installEntitySchema('file');
+    $this->installSchema('file', ['file_usage']);
+    $files = [];
+    foreach (['used' => TRUE, 'unused' => TRUE, 'temporary' => FALSE] as $name => $permanent) {
+      file_put_contents("public://$name.txt", $name);
+      $files[$name] = File::create(['uri' => "public://$name.txt", 'filename' => "$name.txt"]);
+      $permanent ? $files[$name]->setPermanent() : $files[$name]->setTemporary();
+      $files[$name]->save();
+    }
+    $this->container->get('file.usage')->add($files['used'], 'reports_test', 'node', 1);
+
+    $report = $this->generate('unused_files', []);
+    $this->assertSame(['unused.txt'], array_column(iterator_to_array($this->storage->getRows($report), FALSE), 'filename'));
+    $report = $this->generate('unused_files', ['temporary' => TRUE]);
+    $this->assertSame(['unused.txt', 'temporary.txt'], array_column(iterator_to_array($this->storage->getRows($report), FALSE), 'filename'));
+  }
+
+  /**
+   * Tests the unused taxonomy terms report.
+   */
+  public function testUnusedTerms(): void {
+    $this->enableModules(['taxonomy']);
+    $this->installEntitySchema('taxonomy_term');
+    Vocabulary::create(['vid' => 'tags', 'name' => 'Tags'])->save();
+    Vocabulary::create(['vid' => 'other', 'name' => 'Other'])->save();
+    $this->createEntityReferenceField('entity_test', 'entity_test', 'field_tags', 'Tags', 'taxonomy_term');
+    $terms = [];
+    foreach (['Used' => 'tags', 'Parent' => 'tags', 'Unused' => 'other'] as $name => $vid) {
+      $terms[$name] = Term::create(['vid' => $vid, 'name' => $name]);
+      $terms[$name]->save();
+    }
+    // A child term doesn't make its parent used.
+    Term::create(['vid' => 'tags', 'name' => 'Child', 'parent' => $terms['Parent']->id()])->save();
+    EntityTest::create(['name' => 'Tagged', 'field_tags' => $terms['Used']])->save();
+
+    $report = $this->generate('unused_terms', []);
+    $names = array_column(iterator_to_array($this->storage->getRows($report), FALSE), 'label');
+    sort($names);
+    $this->assertSame(['Child', 'Parent', 'Unused'], $names);
+
+    $report = $this->generate('unused_terms', ['vocabularies' => 'other']);
+    $this->assertSame(['Unused'], array_column(iterator_to_array($this->storage->getRows($report), FALSE), 'label'));
+  }
+
+  /**
+   * Tests the duplicate values report.
+   */
+  public function testDuplicateValues(): void {
+    foreach (['Same', 'Same', 'Other', 'Same'] as $name) {
+      EntityTest::create(['name' => $name])->save();
+    }
+    $report = $this->generate('duplicate_values', ['field' => 'entity_test.name']);
+    $rows = iterator_to_array($this->storage->getRows($report), FALSE);
+    $this->assertSame(['Same', 'Same', 'Same'], array_column($rows, 'value'));
+    $this->assertSame(['3', '3', '3'], array_column($rows, 'count'));
+
+    // An unknown field is an error.
+    $manager = $this->container->get(ReportManager::class);
+    $this->assertFalse($manager->isUsable($manager->createInstance('duplicate_values', ['field' => 'entity_test.missing'])));
   }
 
   /**
@@ -333,7 +427,13 @@ class GeneratedReportTest extends KernelTestBase {
   public function testSiteAudit(): void {
     EntityTestHelper::createBundle('second', 'Second bundle');
     FieldStorageConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'type' => 'text_long'])->save();
-    FieldConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'bundle' => 'second', 'label' => 'Text', 'required' => TRUE])->save();
+    FieldConfig::create([
+      'field_name' => 'field_text',
+      'entity_type' => 'entity_test',
+      'bundle' => 'second',
+      'label' => 'Text',
+      'required' => TRUE,
+    ])->save();
     \Drupal::service('entity_display.repository')->getFormDisplay('entity_test', 'second')->setComponent('field_text', ['type' => 'text_textarea'])->save();
     FieldStorageConfig::create([
       'field_name' => 'field_items',
@@ -346,7 +446,11 @@ class GeneratedReportTest extends KernelTestBase {
       'entity_type' => 'entity_test',
       'bundle' => 'second',
       'label' => 'Items',
-      'settings' => ['field_settings' => ['title' => ['label' => 'Title', 'required' => TRUE, 'description' => 'The item title.']]],
+      'settings' => [
+        'field_settings' => [
+          'title' => ['label' => 'Title', 'required' => TRUE, 'description' => 'The item title.'],
+        ],
+      ],
     ])->save();
 
     $report = $this->generate('site_audit', ['entity_types' => 'entity_test']);
@@ -356,7 +460,8 @@ class GeneratedReportTest extends KernelTestBase {
     $this->assertNull($this->storage->getFile($report, 'entity_test__second'));
     $this->assertTrue($this->storage->hasFiles($report));
     $data = $this->readSpreadsheet($report);
-    $this->assertSame(['Test entity types', 'Test entity Entity Test Bundle', 'Test entity Second bundle', 'Text formats'], array_keys($data));
+    $tabs = ['Test entity types', 'Test entity Entity Test Bundle', 'Test entity Second bundle', 'Text formats'];
+    $this->assertSame($tabs, array_keys($data));
     $data = array_combine(array_keys($report->getSheets()), $data);
     $this->assertSame(array_map('count', $data), $this->storage->getStatus($report)['rows']);
 
@@ -394,8 +499,11 @@ class GeneratedReportTest extends KernelTestBase {
    */
   protected function readSpreadsheet(GeneratedReportInterface $report): array {
     $headers = array_values(array_map(fn ($sheet) => array_keys($sheet['header']), $report->getSheets()));
+    // OpenSpout can't read from the test's virtual file system.
+    $path = tempnam(sys_get_temp_dir(), 'reports');
+    copy($this->storage->getSpreadsheetFile($report), $path);
     $reader = new Reader();
-    $reader->open(\Drupal::service('file_system')->realpath($this->storage->getSpreadsheetFile($report)));
+    $reader->open($path);
     $data = [];
     foreach ($reader->getSheetIterator() as $index => $sheet) {
       $keys = $headers[$index - 1];
@@ -412,6 +520,7 @@ class GeneratedReportTest extends KernelTestBase {
       }
     }
     $reader->close();
+    unlink($path);
     return $data;
   }
 

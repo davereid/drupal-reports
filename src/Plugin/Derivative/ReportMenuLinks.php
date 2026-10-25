@@ -35,7 +35,7 @@ class ReportMenuLinks extends DeriverBase implements ContainerDeriverInterface {
   public function getDerivativeDefinitions($base_plugin_definition): array {
     $this->derivatives = [];
     foreach ($this->reportManager->getDefinitions() as $id => $definition) {
-      if (!$this->reportManager->createInstance($id)->isApplicable()) {
+      if (!$this->reportManager->isApplicable($id)) {
         continue;
       }
       $this->derivatives[$id] = [

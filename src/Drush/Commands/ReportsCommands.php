@@ -66,7 +66,10 @@ class ReportsCommands extends DrushCommands {
   #[CLI\Option(name: 'sheet', description: 'The sheet to output, for reports with several sheets.')]
   #[CLI\Option(name: 'generate', description: 'Regenerate a generated report first.')]
   #[CLI\Usage(name: 'drush reports:run absolute_urls --config=domains=example.com --format=csv', description: 'Outputs the absolute URLs to example.com as CSV.')]
-  public function run(string $id, array $options = ['config' => [], 'sheet' => 'default', 'generate' => FALSE, 'format' => 'table']): ?RowsOfFields {
+  public function run(
+    string $id,
+    array $options = ['config' => [], 'sheet' => 'default', 'generate' => FALSE, 'format' => 'table'],
+  ): ?RowsOfFields {
     $report = $this->createReport($id, $options['config']);
     $download_only = !empty($report->getPluginDefinition()['downloadOnly']);
     $sheets = $report->getSheets();
@@ -75,7 +78,10 @@ class ReportsCommands extends DrushCommands {
       $options['sheet'] = array_key_first($sheets);
     }
     if (!isset($sheets[$options['sheet']])) {
-      throw new \InvalidArgumentException(dt('The report has no sheet named @sheet. Sheets: @sheets', ['@sheet' => $options['sheet'], '@sheets' => implode(', ', array_keys($sheets))]));
+      throw new \InvalidArgumentException(dt('The report has no sheet named @sheet. Sheets: @sheets', [
+        '@sheet' => $options['sheet'],
+        '@sheets' => implode(', ', array_keys($sheets)),
+      ]));
     }
 
     if ($errors = $this->getRequirementErrors($report)) {
@@ -128,7 +134,7 @@ class ReportsCommands extends DrushCommands {
       if ($id !== NULL || $options['config']) {
         throw new \InvalidArgumentException(dt('--all generates every report with its default options, so leave out the report ID and --config.'));
       }
-      $reports = array_filter(array_map(fn ($id) => $this->reportManager->createInstance($id), array_keys($this->reportManager->getDefinitions())), fn ($report) => $report instanceof GeneratedReportInterface && $report->isApplicable());
+      $reports = array_filter(array_map(fn ($id) => $this->reportManager->createInstance($id), array_keys($this->reportManager->getDefinitions())), fn ($report) => $report instanceof GeneratedReportInterface && $this->reportManager->isApplicable($report->getPluginId()));
     }
     elseif ($id === NULL) {
       throw new \InvalidArgumentException(dt('Give a report ID, or use --all.'));
@@ -145,7 +151,10 @@ class ReportsCommands extends DrushCommands {
         if (!$options['all']) {
           throw new \RuntimeException($errors);
         }
-        $this->logger()->warning(dt('Skipping @report: @errors', ['@report' => $report->getPluginDefinition()['label'], '@errors' => $errors]));
+        $this->logger()->warning(dt('Skipping @report: @errors', [
+          '@report' => $report->getPluginDefinition()['label'],
+          '@errors' => $errors,
+        ]));
         unset($reports[$key]);
       }
     }
@@ -159,7 +168,10 @@ class ReportsCommands extends DrushCommands {
         if (!$options['all']) {
           throw $exception;
         }
-        $this->logger()->warning(dt('Skipping @report: @message', ['@report' => $report->getPluginDefinition()['label'], '@message' => $exception->getMessage()]));
+        $this->logger()->warning(dt('Skipping @report: @message', [
+          '@report' => $report->getPluginDefinition()['label'],
+          '@message' => $exception->getMessage(),
+        ]));
         unset($reports[$key]);
       }
     }
@@ -207,7 +219,11 @@ class ReportsCommands extends DrushCommands {
       [$key, $value] = explode('=', $pair, 2) + [1 => ''];
       $configuration[$key] = $value;
     }
-    return $this->reportManager->createInstance($id, $configuration);
+    $report = $this->reportManager->createInstance($id, $configuration);
+    if (!$this->reportManager->isApplicable($id)) {
+      throw new \InvalidArgumentException(dt('The @id report does not apply to this site, e.g. a module it needs is not installed.', ['@id' => $id]));
+    }
+    return $report;
   }
 
 }

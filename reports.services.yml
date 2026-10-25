@@ -3,9 +3,10 @@ services:
     autowire: true
     autoconfigure: true
 
+  # Autowired: ReportManager's constructor has #[Autowire] attributes for
+  # default_plugin_manager's arguments.
   plugin.manager.report:
     class: Drupal\reports\ReportManager
-    parent: default_plugin_manager
   Drupal\reports\ReportManager: '@plugin.manager.report'
 
   reports.storage:
@@ -15,6 +16,11 @@ services:
   reports.generator:
     class: Drupal\reports\ReportGenerator
   Drupal\reports\ReportGenerator: '@reports.generator'
+
+  reports.param_converter:
+    class: Drupal\reports\Routing\ReportParamConverter
+    tags:
+      - { name: paramconverter }
 
   logger.channel.reports:
     parent: logger.channel_base

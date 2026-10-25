@@ -22,7 +22,7 @@ class TestInapplicable extends ReportBase implements RealtimeReportInterface {
   /**
    * {@inheritdoc}
    */
-  public function isApplicable(): bool {
+  public static function isApplicable(array $plugin_definition): bool {
     return FALSE;
   }
 

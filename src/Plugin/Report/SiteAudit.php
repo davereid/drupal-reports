@@ -123,10 +123,15 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
     $instance->fieldTypeManager = $container->get('plugin.manager.field.field_type');
     $instance->widgetManager = $container->get('plugin.manager.field.widget');
     $instance->formatterManager = $container->get('plugin.manager.field.formatter');
-    $instance->moderationInformation = $container->has('content_moderation.moderation_information') ? $container->get('content_moderation.moderation_information') : NULL;
-    $instance->contentTranslationManager = $container->has('content_translation.manager') ? $container->get('content_translation.manager') : NULL;
-    foreach (['customFieldTypeManager' => 'type', 'customFieldWidgetManager' => 'widget', 'customFieldFormatterManager' => 'formatter'] as $property => $type) {
-      $instance->{$property} = $container->has("plugin.manager.custom_field_$type") ? $container->get("plugin.manager.custom_field_$type") : NULL;
+    $instance->moderationInformation = $container->get('content_moderation.moderation_information', ContainerInterface::NULL_ON_INVALID_REFERENCE);
+    $instance->contentTranslationManager = $container->get('content_translation.manager', ContainerInterface::NULL_ON_INVALID_REFERENCE);
+    $custom_field_managers = [
+      'customFieldTypeManager' => 'type',
+      'customFieldWidgetManager' => 'widget',
+      'customFieldFormatterManager' => 'formatter',
+    ];
+    foreach ($custom_field_managers as $property => $type) {
+      $instance->{$property} = $container->get("plugin.manager.custom_field_$type", ContainerInterface::NULL_ON_INVALID_REFERENCE);
     }
     return $instance;
   }
@@ -295,7 +300,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       $format_roles = array_filter($roles, fn (RoleInterface $role) => $format->isFallbackFormat() || $role->hasPermission((string) $format->getPermissionName()));
       $filters = [];
       foreach ($format->filters() as $filter_id => $filter) {
-        if ($filter->status) {
+        if (!empty($filter->getConfiguration()['status'])) {
           $filters[] = "{$filter->getLabel()} ($filter_id)";
         }
       }
@@ -306,7 +311,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'roles' => implode(', ', array_map(fn (RoleInterface $role) => $role->label(), $format_roles)),
         'editor' => isset($editors[$id]) ? $editors[$id]->getEditor() : '',
         'filters' => implode(', ', $filters),
-        'allowed_html' => $format->filters()->has('filter_html') && $format->filters('filter_html')->status ? $format->filters('filter_html')->getConfiguration()['settings']['allowed_html'] ?? '' : '',
+        'allowed_html' => $format->filters()->has('filter_html') && !empty($format->filters('filter_html')->getConfiguration()['status']) ? $format->filters('filter_html')->getConfiguration()['settings']['allowed_html'] ?? '' : '',
       ], 'text_formats');
     }
     $context['message'] = $this->t('Checking text formats.');
@@ -458,6 +463,9 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       };
     }
     if ($bundle_entity instanceof NodeTypeInterface) {
+      // FALSE returns the NodePreviewMode enum; the integer form is deprecated
+      // in Drupal 11.3, but the interface doesn't declare the parameter yet.
+      // @phpstan-ignore arguments.count
       $settings['preview'] = $bundle_entity->getPreviewMode(FALSE)->label();
       $settings['submitted'] = $yes_no($bundle_entity->displaySubmitted());
       $status = $this->entityFieldManager->getFieldDefinitions($entity_type_id, $bundle)['status'] ?? NULL;

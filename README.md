@@ -31,6 +31,9 @@ Install as you would normally install a contributed Drupal module. For further i
 ## Included reports
 
 - **Absolute URLs**: links in content (link fields, Custom Field link and URI subfields, and `<a>` elements in text fields) that use absolute URLs to the site's own domains. Checks text as displayed (after text format filters) or as entered.
+- **Duplicate values**: content that shares the same value in a single-value text field, such as the title (the default) or a summary.
+- **Unused files**: files that nothing uses (no file usage records), optionally including temporary files.
+- **Unused taxonomy terms**: terms that no entity reference field references, optionally limited to some vocabularies. Requires the Taxonomy module.
 - **Content counts**: the number of items of each bundle of each content entity type, and how many are published. Useful to find unused bundles.
 - **Site audit**: an Excel workbook with, for each entity type, a sheet listing its bundles (description, available menus, URL patterns) and a sheet per bundle listing its fields (field type, allowed values, cardinality, required, widget, formatter, character limit, help text), with custom field subfields as their own rows; plus a sheet of text formats.
 
@@ -55,13 +58,14 @@ Report data:
 - Cells can be strings, numbers, `Url` or `Link` objects. Links are rendered as links. In files and Drush output, URLs become absolute URLs and links keep only their text.
 - Status reports (`type: 'status'`) extend `StatusReportBase`.
 - Reports meant to be read as a spreadsheet, such as ones with many sheets, can set `downloadOnly: TRUE` in their attribute: their page lists the sheets with their row counts and offers the Excel file, instead of showing a table. Only the Excel file is kept: the sheets' CSV files are deleted once it's written.
+- Reports that check URLs and formatted text in content can extend `TextFieldReportBase` (experimental), as Absolute URLs does: it finds link, formatted text and custom field subfields, adds a _Check text fields_ option, batches by field and builds the summary table. Implement `getValueHeader()`, and `getUrlRows()` and/or `getHtmlRows()`.
 - Reports that list entities can extend `EntityReportBase` (experimental): it adds an _include_ option (unpublished content, content in the trash), entity queries and batches that respect them, and the title, type, ID, page and edit URL and state columns (using Helper's `EntityHelper::getState()`: deleted, moderation state, published or unpublished).
 
 Options and cache tags:
 
 - Reports take options through `defaultConfiguration()`, and implement `PluginFormInterface` to show a form above the report. Generated reports are stored separately for each configuration.
 - `getSummary()` returns a render array describing what the report checks (not its current options); by default, the report's description, e.g. the entity types, bundles and fields it scans. It's shown on the report page.
-- `isApplicable()` returns FALSE when the report doesn't apply to the site, e.g. an optional module it reports on isn't installed: it then has no menu link under Reports.
+- The static `isApplicable(array $plugin_definition)` returns FALSE when the report doesn't apply to the site, e.g. an optional module it reports on isn't installed: it then has no menu link under Reports, and its pages return 404 Not Found.
 - `getRequirements()` returns requirements in `hook_runtime_requirements()`'s format, e.g. a warning when there's nothing to report on. Errors prevent viewing and generating the report; warnings are shown with it. Storage for generated reports is checked for you, and is the only requirement on the status report.
 - `getOperations()` adds buttons to the report page, next to the downloads (links the user can't access are hidden).
 - `getCacheTags()` lists the data a report is built from. Prefer list tags, such as bundle list tags (`node_list:article`), to tags of individual entities.

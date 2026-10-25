@@ -37,6 +37,20 @@ class ReportManager extends DefaultPluginManager {
   }
 
   /**
+   * Checks whether a report applies to the site.
+   *
+   * @param string $id
+   *   The report plugin ID.
+   *
+   * @return bool
+   *   TRUE if the report exists and its isApplicable() returns TRUE.
+   */
+  public function isApplicable(string $id): bool {
+    $definition = $this->getDefinition($id, FALSE);
+    return $definition && $definition['class']::isApplicable($definition);
+  }
+
+  /**
    * Gets a report's requirements, including storage for generated reports.
    *
    * @param \Drupal\reports\Plugin\Report\ReportInterface $report
@@ -68,7 +82,7 @@ class ReportManager extends DefaultPluginManager {
   public function getGlobalRequirements(): array {
     foreach (array_keys($this->getDefinitions()) as $id) {
       $report = $this->createInstance($id);
-      if ($report instanceof GeneratedReportInterface && $report->isApplicable()) {
+      if ($report instanceof GeneratedReportInterface && $this->isApplicable($id)) {
         $storage = $this->getStorageRequirement();
         return $storage ? ['reports_storage' => $storage] : [];
       }
@@ -84,10 +98,11 @@ class ReportManager extends DefaultPluginManager {
    *   temporary directory, or NULL if there's no problem.
    */
   protected function getStorageRequirement(): ?array {
+    $reason = $this->reportStorage->getUnavailableReason();
     $description = match (TRUE) {
-      (bool) ($reason = $this->reportStorage->getUnavailableReason()) => $reason,
-      $this->reportStorage->isPublic() => $this->t('Generated reports are stored in the public file system, where anyone with a file\'s URL can download it. Reports can contain private information, such as unpublished content and site details. Set $settings[\'reports_directory\'] in settings.php to a private directory.'),
-      $this->reportStorage->isTemporary() => $this->t('Generated reports are stored in the temporary directory, which can be cleared at any time and is separate on each web server. Set $settings[\'reports_directory\'] in settings.php to a private directory.'),
+      $reason !== NULL => $reason,
+      $this->reportStorage->isPublic() => $this->t('Generated reports are stored in the public file system, where anyone who has the URL of a file can download it. Reports can contain private information, such as unpublished content and site details. Set the reports_directory setting in settings.php to a private directory.'),
+      $this->reportStorage->isTemporary() => $this->t('Generated reports are stored in the temporary directory, which can be cleared at any time and is separate on each web server. Set the reports_directory setting in settings.php to a private directory.'),
       default => NULL,
     };
     if (!$description) {

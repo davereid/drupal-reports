@@ -115,7 +115,7 @@ abstract class EntityReportBase extends ReportBase {
    * Checks whether the 'include' option has a value.
    *
    * @param string $value
-   *   'unpublished' or 'trashed'.
+   *   The value: 'unpublished' or 'trashed'.
    */
   protected function isIncluded(string $value): bool {
     return in_array($value, $this->configuration['include'], TRUE);

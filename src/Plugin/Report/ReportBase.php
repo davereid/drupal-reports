@@ -119,7 +119,7 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
   /**
    * {@inheritdoc}
    */
-  public function isApplicable(): bool {
+  public static function isApplicable(array $plugin_definition): bool {
     return TRUE;
   }
 

@@ -5,6 +5,10 @@ reports.report:
     _title_callback: '\Drupal\reports\Controller\ReportController::title'
   requirements:
     _custom_access: '\Drupal\reports\Controller\ReportController::access'
+  options:
+    parameters:
+      report:
+        type: report
 
 reports.report.csv:
   path: '/admin/reports/{report}/csv'
@@ -12,6 +16,10 @@ reports.report.csv:
     _controller: '\Drupal\reports\Controller\ReportController::csv'
   requirements:
     _custom_access: '\Drupal\reports\Controller\ReportController::access'
+  options:
+    parameters:
+      report:
+        type: report
 
 reports.report.xlsx:
   path: '/admin/reports/{report}/xlsx'
@@ -19,6 +27,10 @@ reports.report.xlsx:
     _controller: '\Drupal\reports\Controller\ReportController::xlsx'
   requirements:
     _custom_access: '\Drupal\reports\Controller\ReportController::access'
+  options:
+    parameters:
+      report:
+        type: report
 
 reports.report.generate:
   path: '/admin/reports/{report}/generate'
@@ -28,6 +40,10 @@ reports.report.generate:
   requirements:
     _custom_access: '\Drupal\reports\Controller\ReportController::generateAccess'
     _csrf_token: 'TRUE'
+  options:
+    parameters:
+      report:
+        type: report
 
 reports.settings:
   path: '/admin/config/system/reports'

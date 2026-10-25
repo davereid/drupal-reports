@@ -72,15 +72,24 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
    * Checks whether the report applies to this site at all.
    *
    * Reports that don't apply, e.g. because an optional module they report on
-   * isn't installed, have no menu link under Reports, and are left out of
-   * the status report and drush reports:generate --all. Their page still
-   * works. For problems a site can fix, such as missing storage, use
-   * getRequirements() instead.
+   * isn't installed, have no menu link under Reports, are left out of
+   * drush reports:generate --all, and their pages return 404 Not Found. For
+   * problems a site can fix, such as missing storage, use getRequirements()
+   * instead.
+   *
+   * It's static, like core's isApplicable() on field formatters and widgets,
+   * so it can be checked without creating the plugin. Use \Drupal:: for the
+   * services it needs.
+   *
+   * @param array $plugin_definition
+   *   The report's plugin definition, e.g. to check a derivative.
    *
    * @return bool
    *   TRUE if the report applies.
+   *
+   * @see \Drupal\reports\ReportManager::isApplicable()
    */
-  public function isApplicable(): bool;
+  public static function isApplicable(array $plugin_definition): bool;
 
   /**
    * Checks whether the report can be used on this site.

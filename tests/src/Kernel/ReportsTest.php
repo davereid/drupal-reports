@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\reports\Kernel;
 
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\reports\Plugin\Report\RealtimeReportInterface;
+use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\reports\ReportManager;
 use Drupal\reports\ReportStorage;
 use Drupal\reports\ReportWriter;
@@ -43,6 +45,8 @@ class ReportsTest extends KernelTestBase {
     $this->assertTrue($manager->hasDefinition('reports_test_table'));
     $this->assertSame('status', $manager->getDefinition('reports_test_status')['type']);
 
+    // User 1 bypasses permissions, so create it first.
+    $this->createUser();
     $reporter = $this->createUser(['access site reports']);
     $admin = $this->createUser(['access site reports', 'administer site configuration']);
     // The default permission.
@@ -83,6 +87,7 @@ class ReportsTest extends KernelTestBase {
    */
   public function testNormalizeRow(): void {
     $report = $this->container->get(ReportManager::class)->createInstance('reports_test_table');
+    assert($report instanceof RealtimeReportInterface);
     $header = $report->getSheets()['default']['header'];
     $rows = array_map(fn ($row) => ReportWriter::normalizeRow($header, $row), iterator_to_array($report->getRows(), FALSE));
     $this->assertSame([
@@ -91,6 +96,7 @@ class ReportsTest extends KernelTestBase {
     ], $rows);
 
     $status = $this->container->get(ReportManager::class)->createInstance('reports_test_status');
+    assert($status instanceof RealtimeReportInterface);
     $row = iterator_to_array($status->getRows(), FALSE)[0];
     $this->assertSame(['cron', 'Cron', 'Late', 'Warning', 'Cron has not run.'], ReportWriter::normalizeRow($status->getSheets()['default']['header'], $row));
   }
@@ -101,13 +107,24 @@ class ReportsTest extends KernelTestBase {
   public function testRequirements(): void {
     $manager = $this->container->get(ReportManager::class);
     $table = $manager->createInstance('reports_test_table');
-    $this->assertTrue($table->isApplicable());
+    $this->assertTrue($manager->isApplicable('reports_test_table'));
     $this->assertSame([], $manager->getRequirements($table));
     $this->assertTrue($manager->isUsable($table));
 
     $inapplicable = $manager->createInstance('reports_test_inapplicable');
-    $this->assertFalse($inapplicable->isApplicable());
+    $this->assertFalse($manager->isApplicable('reports_test_inapplicable'));
+    $this->assertFalse($manager->isApplicable('missing'));
     $this->assertFalse($manager->isUsable($inapplicable));
+
+    // The route parameter converter only converts reports that apply, with
+    // the options from the query string.
+    $converter = $this->container->get('reports.param_converter');
+    $this->container->get('request_stack')->getCurrentRequest()->query->set('config', ['count' => 5]);
+    $converted = $converter->convert('reports_test_table', ['type' => 'report'], 'report', []);
+    $this->assertInstanceOf(ReportInterface::class, $converted);
+    $this->assertEquals(['count' => 5], $converted->getConfiguration());
+    $this->assertNull($converter->convert('reports_test_inapplicable', ['type' => 'report'], 'report', []));
+    $this->assertNull($converter->convert('missing', ['type' => 'report'], 'report', []));
 
     // Reports that don't apply have no menu link.
     $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
