@@ -137,6 +137,8 @@
           download.className = 'button js-form-submit form-submit';
           download.textContent = Drupal.t('Download filtered results (CSV)');
           download.hidden = true;
+          // Each filter's column and field.
+          const fields = [];
           download.addEventListener('click', () => {
             // The report, then each applied filter and the table's search,
             // e.g. absolute_urls-state-unpublished.csv.
@@ -161,12 +163,8 @@
             downloadFiltered(dataTable, `${filename}.csv`);
           });
 
-          // Each filter's column and field.
-          const fields = [];
           const updateReset = () => {
-            reset.hidden = !fields.some(
-              ({ column }) => column.search() !== '',
-            );
+            reset.hidden = !fields.some(({ column }) => column.search() !== '');
           };
           // The filtered download is offered while the filters or the table's
           // search hide rows.
@@ -230,4 +228,4 @@
       );
     },
   };
-})(Drupal, once, DataTable);
+})(Drupal, once, window.DataTable);

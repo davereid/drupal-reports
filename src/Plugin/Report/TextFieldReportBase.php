@@ -305,9 +305,11 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
         $writer->addRow(['field' => $field['label']] + $row + $entity_row);
       }
     }
-    $context['message'] = $this->t('Checking @field on @entity_type.', [
+    // With the machine name, since several fields can share a label.
+    $context['message'] = $this->t('Scanning @entity_types with @field (@name) field values.', [
+      '@entity_types' => $this->entityTypeManager->getDefinition($entity_type_id)->getPluralLabel(),
       '@field' => $field['label'],
-      '@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel(),
+      '@name' => $field_name,
     ]);
   }
 

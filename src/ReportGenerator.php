@@ -70,6 +70,14 @@ class ReportGenerator {
     $arguments[] = new ReportWriter($storage->getTemporaryDirectory($report), $report->getSheets());
     $arguments[] = &$context;
     $report->{$method}(...$arguments);
+    // Name the report, e.g. for drush reports:generate --all, which logs each
+    // message.
+    if (!empty($context['message'])) {
+      $context['message'] = t('@report: @message', [
+        '@report' => $report->getPluginDefinition()['label'],
+        '@message' => $context['message'],
+      ]);
+    }
   }
 
   /**
