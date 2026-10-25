@@ -306,6 +306,10 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
       }
     }
     // With the machine name, since several fields can share a label.
+    // Nothing to report on fields without entities to scan.
+    if (!$context['sandbox']['total']) {
+      return;
+    }
     $context['message'] = $this->t('Scanning @entity_types with @field (@name) field values (@count of @total).', [
       '@entity_types' => $this->entityTypeManager->getDefinition($entity_type_id)->getPluralLabel(),
       '@field' => $field['label'],
