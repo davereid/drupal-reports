@@ -13,6 +13,7 @@ use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\filter\Entity\FilterFormat;
 use Drupal\helper\Utility;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\reports\Exception\ReportGeneratingException;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\ReportGenerator;
 use Drupal\reports\ReportManager;
@@ -254,6 +255,36 @@ class GeneratedReportTest extends KernelTestBase {
       $this->assertSame(RequirementSeverity::Error, $this->container->get(ReportManager::class)->getRequirements($report)['reports_storage']['severity'], $directory);
       $this->assertFalse($this->container->get(ReportManager::class)->isUsable($report), $directory);
     }
+  }
+
+  /**
+   * Tests that a report can't be generated twice at the same time.
+   */
+  public function testGenerating(): void {
+    $report = $this->container->get(ReportManager::class)->createInstance('absolute_urls', ['domains' => 'example.com']);
+    $this->storage->start($report);
+    $this->assertTrue($this->storage->isGenerating($report));
+    try {
+      $this->storage->start($report);
+      $this->fail('A report being generated was started again.');
+    }
+    catch (ReportGeneratingException) {
+      // Expected.
+    }
+
+    // Other options of the same report can be generated meanwhile.
+    $other = $this->container->get(ReportManager::class)->createInstance('absolute_urls', ['domains' => 'example.org']);
+    $this->storage->start($other);
+
+    // Without batch activity for a while, the generation was abandoned, and
+    // the report can be generated again.
+    $keyvalue = $this->container->get('keyvalue')->get('reports');
+    $status = $keyvalue->get($this->storage->getKey($report));
+    $status['heartbeat'] -= ReportStorage::GENERATING_TIMEOUT + 1;
+    $keyvalue->set($this->storage->getKey($report), $status);
+    $this->assertFalse($this->storage->isGenerating($report));
+    $this->storage->start($report);
+    $this->assertTrue($this->storage->isGenerating($report));
   }
 
   /**

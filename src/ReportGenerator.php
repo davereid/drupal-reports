@@ -25,6 +25,9 @@ class ReportGenerator {
    * Sets the report's status to generating, so only call it when the batch
    * will be run.
    *
+   * @throws \Drupal\reports\Exception\ReportGeneratingException
+   *   If the report is already being generated with the same options.
+   *
    * @param \Drupal\reports\Plugin\Report\GeneratedReportInterface $report
    *   The report, with its configuration.
    *
@@ -62,7 +65,9 @@ class ReportGenerator {
   public static function runOperation(string $id, array $configuration, string $method, array $arguments, &$context): void {
     $context['results']['report'] = [$id, $configuration];
     $report = static::createReport($id, $configuration);
-    $arguments[] = new ReportWriter(\Drupal::service(ReportStorage::class)->getTemporaryDirectory($report), $report->getSheets());
+    $storage = \Drupal::service(ReportStorage::class);
+    $storage->keepGenerating($report);
+    $arguments[] = new ReportWriter($storage->getTemporaryDirectory($report), $report->getSheets());
     $arguments[] = &$context;
     $report->{$method}(...$arguments);
   }

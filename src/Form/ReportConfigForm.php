@@ -9,6 +9,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Url;
+use Drupal\reports\Exception\ReportGeneratingException;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\reports\ReportGenerator;
@@ -136,8 +137,7 @@ class ReportConfigForm extends FormBase {
     // Form API runs the batch, then follows the redirect to the report.
     if ($report instanceof GeneratedReportInterface && $this->reportManager->isUsable($report) && !$this->reportStorage->hasFiles($report)) {
       $form_state->set('generating', TRUE);
-      $this->setReportRedirect($form_state, TRUE);
-      batch_set($this->reportGenerator->buildBatch($report));
+      $this->setBatch($form_state);
     }
   }
 
@@ -165,8 +165,20 @@ class ReportConfigForm extends FormBase {
   public function regenerate(array &$form, FormStateInterface $form_state): void {
     // submitForm() already started a batch if there was no file.
     if (!$form_state->get('generating')) {
-      $this->setReportRedirect($form_state, TRUE);
+      $this->setBatch($form_state);
+    }
+  }
+
+  /**
+   * Starts generating the report, unless it's already being generated.
+   */
+  protected function setBatch(FormStateInterface $form_state): void {
+    try {
       batch_set($this->reportGenerator->buildBatch($form_state->get('report')));
+      $this->setReportRedirect($form_state, TRUE);
+    }
+    catch (ReportGeneratingException $exception) {
+      $this->messenger()->addError($exception->getMessage());
     }
   }
 

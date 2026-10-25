@@ -7,6 +7,7 @@ namespace Drupal\reports\Drush\Commands;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Url;
+use Drupal\reports\Exception\ReportGeneratingException;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\reports\ReportGenerator;
@@ -149,9 +150,18 @@ class ReportsCommands extends DrushCommands {
       }
     }
     // Each report is its own batch set, run one after another.
-    foreach ($reports as $report) {
-      $this->logger()->notice(dt('Generating @report.', ['@report' => $report->getPluginDefinition()['label']]));
-      batch_set($this->reportGenerator->buildBatch($report));
+    foreach ($reports as $key => $report) {
+      try {
+        batch_set($this->reportGenerator->buildBatch($report));
+        $this->logger()->notice(dt('Generating @report.', ['@report' => $report->getPluginDefinition()['label']]));
+      }
+      catch (ReportGeneratingException $exception) {
+        if (!$options['all']) {
+          throw $exception;
+        }
+        $this->logger()->warning(dt('Skipping @report: @message', ['@report' => $report->getPluginDefinition()['label'], '@message' => $exception->getMessage()]));
+        unset($reports[$key]);
+      }
     }
     if ($reports) {
       drush_backend_batch_process();
