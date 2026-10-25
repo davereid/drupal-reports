@@ -152,7 +152,8 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
    * {@inheritdoc}
    */
   public function access(AccountInterface $account): AccessResultInterface {
-    return AccessResult::allowedIfHasPermission($account, $this->pluginDefinition['permission']);
+    // A list of permissions are all needed.
+    return AccessResult::allowedIfHasPermissions($account, (array) $this->pluginDefinition['permission'], 'AND');
   }
 
 }

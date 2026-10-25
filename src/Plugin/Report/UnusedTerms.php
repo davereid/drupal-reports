@@ -25,6 +25,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   id: 'unused_terms',
   label: new TranslatableMarkup('Unused taxonomy terms'),
   description: new TranslatableMarkup('Taxonomy terms that no content or other entity references.'),
+  permission: ['access site reports', 'access taxonomy overview'],
 )]
 class UnusedTerms extends EntityReportBase implements GeneratedReportInterface, PluginFormInterface {
 

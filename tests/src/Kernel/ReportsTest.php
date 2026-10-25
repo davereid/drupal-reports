@@ -54,6 +54,10 @@ class ReportsTest extends KernelTestBase {
     // A report's own permission.
     $this->assertFalse($manager->createInstance('reports_test_table')->access($reporter)->isAllowed());
     $this->assertTrue($manager->createInstance('reports_test_table')->access($admin)->isAllowed());
+    // A list of permissions are all needed.
+    $files = $this->createUser(['access site reports', 'access files overview']);
+    $this->assertFalse($manager->createInstance('unused_files')->access($reporter)->isAllowed());
+    $this->assertTrue($manager->createInstance('unused_files')->access($files)->isAllowed());
   }
 
   /**

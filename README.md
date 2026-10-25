@@ -21,7 +21,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Configuration
 
-- Reports are listed at _Reports_ » _Reports_ (`/admin/reports/reports`). By default, they need the _View site reports_ permission; each report can require a different one.
+- Reports are listed at _Reports_ » _Reports_ (`/admin/reports/reports`). By default, they need the _View site reports_ permission; each report can require other permissions. _Unused files_ also needs _Access the Files overview page_, _Unused taxonomy terms_ needs _Access the taxonomy vocabulary overview page_, and _Site audit_ needs _Administer site configuration_.
 - Set when generated reports are out of date at _Configuration_ » _System_ » _Reports_ (`/admin/config/system/reports`).
 - Generated reports are stored in `private://reports`. To use another directory, such as a private S3 bucket, set `$settings['reports_directory'] = 's3private://reports';` in `settings.php`. It must be writable. `public://` works but the status report warns about it, since anyone with a file's URL could download reports, which can contain unpublished content and site details. `temporary://` also works with a warning, since it can be cleared at any time and isn't shared between web servers.
 - Generated report files are deleted on cron once they're older than _Delete generated reports after_ (30 days by default), and generated again when next viewed. `drush reports:clean` does the same on demand.
@@ -47,7 +47,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Writing reports
 
-Report plugins live in `src/Plugin/Report` and use the `#[Report]` attribute. Extend `ReportBase` and implement either:
+Report plugins live in `src/Plugin/Report` and use the `#[Report]` attribute. Its `permission` is one permission or a list of permissions that are all required (`ReportBase::access()`); override `access()` for other rules. Extend `ReportBase` and implement either:
 
 - `RealtimeReportInterface`: `getRows()` builds the rows on every request.
 - `GeneratedReportInterface`: `getBatchOperations()` returns plugin methods to run as batch operations. Each is called with its arguments, a `ReportWriter` and the batch context, and adds rows with `$writer->addRow($row, $sheet)`.

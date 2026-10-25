@@ -25,9 +25,11 @@ class Report extends Plugin {
    * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $description
    *   (optional) A description, shown under the report's link on the
    *   Reports page (/admin/reports).
-   * @param string $permission
-   *   (optional) The permission needed to view the report. Defaults to
-   *   'access site reports'. Plugins can override access() for other rules.
+   * @param string|string[] $permission
+   *   (optional) The permission needed to view the report, or a list of
+   *   permissions that are all needed, e.g. ['access site reports', 'access
+   *   files overview']. Defaults to 'access site reports'. Plugins can
+   *   override access() for other rules.
    * @param string $type
    *   (optional) How the report is displayed: 'table' (default), or 'status'
    *   for core's status report. Status reports have the columns of
@@ -43,7 +45,7 @@ class Report extends Plugin {
     public readonly string $id,
     public readonly TranslatableMarkup $label,
     public readonly ?TranslatableMarkup $description = NULL,
-    public readonly string $permission = 'access site reports',
+    public readonly string|array $permission = 'access site reports',
     public readonly string $type = 'table',
     public readonly bool $downloadOnly = FALSE,
     public readonly ?string $deriver = NULL,
