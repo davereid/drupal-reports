@@ -53,6 +53,8 @@ Report plugins live in `src/Plugin/Report` and use the `#[Report]` attribute. It
 - `RealtimeReportInterface`: `getRows()` builds the rows on every request.
 - `GeneratedReportInterface`: `getBatchOperations()` returns plugin methods to run as batch operations. Each is called with its arguments, a `ReportWriter` and the batch context, and adds rows with `$writer->addRow($row, $sheet)`.
 
+A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other route uses under `/admin/reports`, such as core's `status` or `dblog`: their routes win, so the report can't be shown. The status report warns about such reports, and they get no menu link.
+
 ### Report data
 
 - `getHeader()` returns the columns, keyed by column key: a label, or `['label' => …, 'filter' => …]` where `filter` is `'list'` (a dropdown of the column's values, for columns with few different values), `'search'` (a text box) or `FALSE` (the default: the table's search box already searches every column). `'url' => '<column key>'` links the column's text to another column's URL, and `'hidden' => TRUE` leaves a column out of the page but keeps it in downloads and Drush. Reports with several sheets override `getSheets()` instead.

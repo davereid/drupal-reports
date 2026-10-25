@@ -8,6 +8,7 @@ use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Plugin\DefaultPluginManager;
+use Drupal\Core\Routing\RouteProviderInterface;
 use Drupal\reports\Attribute\Report;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
@@ -30,6 +31,7 @@ class ReportManager extends DefaultPluginManager {
     CacheBackendInterface $cache_backend,
     ModuleHandlerInterface $module_handler,
     protected readonly ReportStorage $reportStorage,
+    protected readonly RouteProviderInterface $routeProvider,
   ) {
     parent::__construct('Plugin/Report', $namespaces, $module_handler, ReportInterface::class, Report::class);
     $this->alterInfo('report_info');
@@ -77,17 +79,59 @@ class ReportManager extends DefaultPluginManager {
    *
    * @return array
    *   'reports_storage', if any generated report applies to the site and its
-   *   storage has a problem.
+   *   storage has a problem, and 'reports_route_conflict:ID' for each
+   *   applicable report whose page is taken by another route.
    */
   public function getGlobalRequirements(): array {
-    foreach (array_keys($this->getDefinitions()) as $id) {
-      $report = $this->createInstance($id);
-      if ($report instanceof GeneratedReportInterface && $this->isApplicable($id)) {
-        $storage = $this->getStorageRequirement();
-        return $storage ? ['reports_storage' => $storage] : [];
+    $requirements = [];
+    $storageChecked = FALSE;
+    foreach ($this->getDefinitions() as $id => $definition) {
+      if (!$this->isApplicable($id)) {
+        continue;
+      }
+      if (!$storageChecked && $this->createInstance($id) instanceof GeneratedReportInterface) {
+        $storageChecked = TRUE;
+        if ($storage = $this->getStorageRequirement()) {
+          $requirements['reports_storage'] = $storage;
+        }
+      }
+      if ($route = $this->getConflictingRoute($id)) {
+        $requirements["reports_route_conflict:$id"] = [
+          'title' => $this->t('Report: @label', ['@label' => $definition['label']]),
+          'value' => $this->t('Not available'),
+          'description' => $this->t("The report can't be shown, because its page (/admin/reports/@id) is used by the route %route. Rename one of them.", [
+            '@id' => $id,
+            '%route' => $route,
+          ]),
+          'severity' => RequirementSeverity::Warning,
+        ];
       }
     }
-    return [];
+    return $requirements;
+  }
+
+  /**
+   * Finds another route that takes a report's page.
+   *
+   * The router prefers routes with more fixed path parts, so a route such as
+   * core's /admin/reports/status always wins over the report's
+   * /admin/reports/{report}, including routes added by modules installed
+   * after the report.
+   *
+   * @param string $id
+   *   The report plugin ID.
+   *
+   * @return string|null
+   *   The name of the route that matches the report's page instead of
+   *   reports.report, or NULL if there's none.
+   */
+  public function getConflictingRoute(string $id): ?string {
+    // Routes are sorted the way the router matches them, best first.
+    $routes = $this->routeProvider->getRoutesByPattern("/admin/reports/$id");
+    foreach ($routes->getIterator() as $name => $route) {
+      return $name === 'reports.report' ? NULL : $name;
+    }
+    return NULL;
   }
 
   /**

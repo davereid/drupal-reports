@@ -1,0 +1,7 @@
+# Takes the page of the reports_test_shadowed report.
+reports.test_shadowing:
+  path: '/admin/reports/reports_test_shadowed'
+  defaults:
+    _controller: '\Drupal\system\Controller\SystemController::systemAdminMenuBlockPage'
+  requirements:
+    _access: 'TRUE'

@@ -13,8 +13,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Adds a menu link under Reports for each report.
  *
  * Core's Reports page (/admin/reports) lists them, hiding the ones the user
- * can't access. Reports that don't apply to the site (isApplicable()) have
- * no link.
+ * can't access. Reports that don't apply to the site (isApplicable()), or
+ * whose page is taken by another route (ReportManager::getConflictingRoute()),
+ * have no link.
  */
 class ReportMenuLinks extends DeriverBase implements ContainerDeriverInterface {
 
@@ -35,7 +36,7 @@ class ReportMenuLinks extends DeriverBase implements ContainerDeriverInterface {
   public function getDerivativeDefinitions($base_plugin_definition): array {
     $this->derivatives = [];
     foreach ($this->reportManager->getDefinitions() as $id => $definition) {
-      if (!$this->reportManager->isApplicable($id)) {
+      if (!$this->reportManager->isApplicable($id) || $this->reportManager->getConflictingRoute($id)) {
         continue;
       }
       $this->derivatives[$id] = [

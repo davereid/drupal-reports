@@ -137,6 +137,24 @@ class ReportsTest extends KernelTestBase {
   }
 
   /**
+   * Tests reports whose page is taken by another route.
+   */
+  public function testRouteConflict(): void {
+    $this->container->get('router.builder')->rebuild();
+    $manager = $this->container->get(ReportManager::class);
+    $this->assertNull($manager->getConflictingRoute('reports_test_table'));
+    $this->assertSame('reports.test_shadowing', $manager->getConflictingRoute('reports_test_shadowed'));
+
+    $requirements = $manager->getGlobalRequirements();
+    $this->assertArrayNotHasKey('reports_route_conflict:reports_test_table', $requirements);
+    $this->assertStringContainsString('reports.test_shadowing', (string) $requirements['reports_route_conflict:reports_test_shadowed']['description']);
+
+    $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
+    $this->assertArrayHasKey('reports.report:reports_test_table', $links);
+    $this->assertArrayNotHasKey('reports.report:reports_test_shadowed', $links);
+  }
+
+  /**
    * Tests report URLs.
    */
   public function testToUrl(): void {
