@@ -1,0 +1,6 @@
+name: 'Reports test'
+type: module
+description: 'Test reports for the Reports module.'
+package: Testing
+dependencies:
+  - reports:reports

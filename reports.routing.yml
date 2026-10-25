@@ -1,0 +1,38 @@
+reports.report:
+  path: '/admin/reports/{report}'
+  defaults:
+    _controller: '\Drupal\reports\Controller\ReportController::view'
+    _title_callback: '\Drupal\reports\Controller\ReportController::title'
+  requirements:
+    _custom_access: '\Drupal\reports\Controller\ReportController::access'
+
+reports.report.csv:
+  path: '/admin/reports/{report}/csv'
+  defaults:
+    _controller: '\Drupal\reports\Controller\ReportController::csv'
+  requirements:
+    _custom_access: '\Drupal\reports\Controller\ReportController::access'
+
+reports.report.xlsx:
+  path: '/admin/reports/{report}/xlsx'
+  defaults:
+    _controller: '\Drupal\reports\Controller\ReportController::xlsx'
+  requirements:
+    _custom_access: '\Drupal\reports\Controller\ReportController::access'
+
+reports.report.generate:
+  path: '/admin/reports/{report}/generate'
+  defaults:
+    _controller: '\Drupal\reports\Controller\ReportController::generate'
+    _title: 'Generate report'
+  requirements:
+    _custom_access: '\Drupal\reports\Controller\ReportController::generateAccess'
+    _csrf_token: 'TRUE'
+
+reports.settings:
+  path: '/admin/config/system/reports'
+  defaults:
+    _form: '\Drupal\reports\Form\SettingsForm'
+    _title: 'Reports settings'
+  requirements:
+    _permission: 'administer site configuration'

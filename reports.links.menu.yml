@@ -1,0 +1,9 @@
+reports.report:
+  # One link per report, under Reports.
+  deriver: Drupal\reports\Plugin\Derivative\ReportMenuLinks
+
+reports.settings:
+  title: 'Reports'
+  description: 'Configure when generated reports are considered out of date.'
+  route_name: reports.settings
+  parent: system.admin_config_system

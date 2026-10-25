@@ -1,0 +1,15 @@
+{
+    "name": "drupal/reports",
+    "description": "Provides plugin-based site reports, with CSV and Excel downloads and Drush commands.",
+    "type": "drupal-module",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "drupal/helper": "^2.1",
+        "openspout/openspout": "^5.3"
+    },
+    "require-dev": {
+        "drupal/custom_field": "*",
+        "drupal/trash": "*",
+        "drush/drush": "*"
+    }
+}

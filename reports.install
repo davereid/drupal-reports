@@ -1,0 +1,17 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the Reports module.
+ */
+
+declare(strict_types=1);
+
+use Drupal\reports\ReportStorage;
+
+/**
+ * Implements hook_uninstall().
+ */
+function reports_uninstall(bool $is_syncing): void {
+  \Drupal::service(ReportStorage::class)->deleteAll();
+}

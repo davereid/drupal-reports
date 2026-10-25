@@ -1,0 +1,9 @@
+name: Reports
+type: module
+description: 'Provides plugin-based site reports, with CSV downloads and Drush commands.'
+package: Administration
+core_version_requirement: ^11.3
+configure: reports.settings
+dependencies:
+  - drupal:file
+  - helper:helper

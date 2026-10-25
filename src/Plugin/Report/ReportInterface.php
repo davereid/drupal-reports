@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\reports\Plugin\Report;
+
+use Drupal\Component\Plugin\ConfigurableInterface;
+use Drupal\Component\Plugin\PluginInspectionInterface;
+use Drupal\Core\Access\AccessResultInterface;
+use Drupal\Core\Cache\CacheableDependencyInterface;
+use Drupal\Core\Session\AccountInterface;
+
+/**
+ * A report.
+ *
+ * Reports implement either RealtimeReportInterface, built on every request,
+ * or GeneratedReportInterface, built with the Batch API and stored in a file.
+ *
+ * Reports can take input: give them a default configuration, and implement
+ * \Drupal\Core\Plugin\PluginFormInterface for the form shown above the
+ * report. Configuration comes from the query string or Drush options, so
+ * treat it as untrusted input. Generated reports are stored separately for
+ * each configuration.
+ *
+ * Reports' cacheability describes the data they're built from. Generated
+ * reports record their cache tags when generation starts, and are shown as
+ * changed when any of them is invalidated afterwards. Prefer list cache tags,
+ * such as bundle list tags, to tags of individual entities.
+ *
+ * Row cells can be scalars, enums, \Drupal\Core\Url, \Drupal\Core\Link or
+ * markup. Links are rendered as links on the page, and as absolute URLs in
+ * CSV files and Drush output.
+ */
+interface ReportInterface extends PluginInspectionInterface, ConfigurableInterface, CacheableDependencyInterface {
+
+  /**
+   * Gets the report's sheets.
+   *
+   * Most reports have one sheet, 'default'. A report with several sheets,
+   * such as one per content type, shows them as tabs.
+   *
+   * @return array<string, array{label: string|\Stringable, header: array<string, string|\Stringable|array{label: string|\Stringable, filter?: string|false}>}>
+   *   Sheets keyed by ID, each with a label and a header keyed by column key.
+   *   Rows are keyed by the same column keys. Each column is a label, or an
+   *   array with:
+   *   - label: The column label.
+   *   - filter: (optional) A filter below the column heading: 'list' for a
+   *     list of the column's values, for columns with few different values,
+   *     or 'search' for a text search. Defaults to FALSE: the table's search
+   *     box already searches every column.
+   *   - url: (optional) The key of a column with a URL to link this column's
+   *     text to on the page.
+   *   - hidden: (optional) TRUE to leave the column out of the page's table.
+   *     It's still in downloads and Drush output.
+   */
+  public function getSheets(): array;
+
+  /**
+   * Summarizes what the report checks.
+   *
+   * Shown on the report page, e.g. the entity types, bundles and fields a
+   * report scans, so users know what generating it will do. It describes the
+   * report, not its current options, which the options form shows.
+   * ReportBase returns the report's description.
+   *
+   * @return array
+   *   A render array, or an empty array for no summary.
+   */
+  public function getSummary(): array;
+
+  /**
+   * Gets the report's own operations.
+   *
+   * They're shown as buttons on the report page, next to the download
+   * buttons. Links the user can't access are hidden.
+   *
+   * @return array<string, array{title: string|\Stringable, url: \Drupal\Core\Url, weight?: int}>
+   *   Operations keyed by name, as for the 'operations' element.
+   */
+  public function getOperations(): array;
+
+  /**
+   * Checks access to the report.
+   *
+   * @param \Drupal\Core\Session\AccountInterface $account
+   *   The user.
+   *
+   * @return \Drupal\Core\Access\AccessResultInterface
+   *   The access result.
+   */
+  public function access(AccountInterface $account): AccessResultInterface;
+
+}

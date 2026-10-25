@@ -1,0 +1,4 @@
+openspout
+xlsx
+spreadsheetml
+openxmlformats

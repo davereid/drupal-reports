@@ -1,0 +1,21 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  plugin.manager.report:
+    class: Drupal\reports\ReportManager
+    parent: default_plugin_manager
+  Drupal\reports\ReportManager: '@plugin.manager.report'
+
+  reports.storage:
+    class: Drupal\reports\ReportStorage
+  Drupal\reports\ReportStorage: '@reports.storage'
+
+  reports.generator:
+    class: Drupal\reports\ReportGenerator
+  Drupal\reports\ReportGenerator: '@reports.generator'
+
+  logger.channel.reports:
+    parent: logger.channel_base
+    arguments: ['reports']

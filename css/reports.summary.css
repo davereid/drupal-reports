@@ -1,0 +1,16 @@
+/**
+ * @file
+ * Compact tables in report summaries.
+ */
+
+.reports-summary table {
+  font-size: 0.875rem;
+}
+
+.reports-summary th,
+.reports-summary td {
+  height: auto;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  vertical-align: top;
+}

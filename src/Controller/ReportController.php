@@ -1,0 +1,381 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\reports\Controller;
+
+use Drupal\Component\Utility\UrlHelper;
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
+use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Link;
+use Drupal\Core\Plugin\PluginFormInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
+use Drupal\reports\Form\ReportConfigForm;
+use Drupal\reports\Plugin\Report\GeneratedReportInterface;
+use Drupal\reports\Plugin\Report\ReportInterface;
+use Drupal\reports\ReportGenerator;
+use Drupal\reports\ReportManager;
+use Drupal\reports\ReportStorage;
+use Drupal\reports\ReportWriter;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+/**
+ * Displays reports.
+ */
+class ReportController extends ControllerBase {
+
+  /**
+   * The report plugin manager.
+   */
+  protected ReportManager $reportManager;
+
+  /**
+   * The report storage.
+   */
+  protected ReportStorage $reportStorage;
+
+  /**
+   * The report generator.
+   */
+  protected ReportGenerator $reportGenerator;
+
+  /**
+   * The date formatter.
+   */
+  protected DateFormatterInterface $dateFormatter;
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container): static {
+    $instance = parent::create($container);
+    $instance->reportManager = $container->get(ReportManager::class);
+    $instance->reportStorage = $container->get(ReportStorage::class);
+    $instance->reportGenerator = $container->get(ReportGenerator::class);
+    $instance->dateFormatter = $container->get('date.formatter');
+    return $instance;
+  }
+
+  /**
+   * Displays a report.
+   */
+  public function view(Request $request, string $report): array {
+    $report = $this->getReport($request, $report);
+    $definition = $report->getPluginDefinition();
+    $sheets = $report->getSheets();
+    $sheet = $this->getSheet($request, $report);
+    $query = $this->getQuery($report);
+    $build = ['#cache' => ['max-age' => 0]];
+
+    if ($summary = $report->getSummary()) {
+      $build['summary'] = [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['reports-summary']],
+        '#attached' => ['library' => ['reports/summary']],
+        'summary' => $summary,
+      ];
+    }
+
+    if ($report instanceof PluginFormInterface) {
+      $build['config'] = $this->formBuilder()->getForm(ReportConfigForm::class, $report);
+    }
+
+    if ($report instanceof GeneratedReportInterface) {
+      $build['status'] = $this->buildGeneratedStatus($report, $query);
+      if ($this->reportStorage->isDownloadOnly($report) ? !$this->reportStorage->hasFiles($report) : !$this->reportStorage->getFile($report, $sheet)) {
+        return $build;
+      }
+    }
+
+    if (!empty($definition['downloadOnly'])) {
+      return $build + $this->buildDownloads($report, $query);
+    }
+
+    if (count($sheets) > 1) {
+      $links = [];
+      foreach ($sheets as $id => $info) {
+        $links[$id] = [
+          'title' => $info['label'],
+          'url' => Url::fromRoute('reports.report', ['report' => $report->getPluginId()], ['query' => ['sheet' => $id] + $query]),
+        ];
+      }
+      $build['sheets'] = ['#theme' => 'links', '#links' => $links, '#attributes' => ['class' => ['tabs', 'secondary']]];
+    }
+
+    $build['download'] = Link::createFromRoute($this->t('Download CSV'), 'reports.report.csv', ['report' => $report->getPluginId()], ['query' => ['sheet' => $sheet] + $query])->toRenderable();
+    $build['download']['#attributes']['class'] = ['button', 'button--small'];
+    if ($report instanceof GeneratedReportInterface && $this->reportStorage->getSpreadsheetFile($report)) {
+      $build['download_xlsx'] = Link::createFromRoute($this->t('Download Excel file (all sheets)'), 'reports.report.xlsx', ['report' => $report->getPluginId()], ['query' => $query])->toRenderable();
+      $build['download_xlsx']['#attributes']['class'] = ['button', 'button--small'];
+    }
+    // The report's own operations, as buttons.
+    foreach ($report->getOperations() as $name => $operation) {
+      $build['operations'][$name] = Link::fromTextAndUrl($operation['title'], $operation['url'])->toRenderable() + [
+        '#attributes' => ['class' => ['button', 'button--small']],
+        '#weight' => $operation['weight'] ?? 0,
+        '#access' => $operation['url']->access(),
+      ];
+    }
+
+    $rows = $this->reportStorage->getRows($report, $sheet);
+    if ($definition['type'] === 'status') {
+      $requirements = [];
+      foreach ($rows as $row) {
+        $requirements[$row['key']] = [
+          'title' => $row['label'],
+          'value' => $row['status'] ?? '',
+          'description' => $row['description'] ?? '',
+          'severity' => $row['severity'] ?? NULL,
+        ];
+      }
+      $build['report'] = ['#type' => 'status_report', '#requirements' => $requirements];
+      return $build;
+    }
+
+    $header = array_map(fn ($column) => is_array($column) ? $column : ['label' => $column], $sheets[$sheet]['header']);
+    $visible = array_filter($header, fn ($column) => empty($column['hidden']));
+    $table_rows = [];
+    // shortcut: renders every row for DataTables, switch to DataTables'
+    // server-side processing if reports get too large for one page.
+    foreach ($rows as $row) {
+      $cells = [];
+      foreach ($visible as $key => $column) {
+        $url = isset($column['url']) ? $row[$column['url']] ?? NULL : NULL;
+        $cells[] = ['data' => $this->buildCell($row[$key] ?? NULL, $url)];
+      }
+      $table_rows[] = $cells;
+    }
+    $build['report'] = [
+      '#type' => 'table',
+      '#header' => array_values(array_map(fn ($column) => [
+        'data' => $column['label'],
+        'data-reports-filter' => $column['filter'] ?? FALSE ?: 'none',
+      ], $visible)),
+      '#rows' => $table_rows,
+      '#empty' => $this->t('No results.'),
+    ];
+    // DataTables' search, filters and paging are only useful with rows.
+    if ($table_rows) {
+      $build['report']['#attributes']['class'][] = 'reports-table';
+      $build['report']['#attached']['library'][] = 'reports/report';
+    }
+    return $build;
+  }
+
+  /**
+   * Builds the downloads of a download-only report.
+   *
+   * An Excel file of all sheets, and a table of the sheets with their number
+   * of rows, as counted when the report was generated.
+   */
+  protected function buildDownloads(ReportInterface $report, array $query): array {
+    $build = [];
+    if ($report instanceof GeneratedReportInterface && $this->reportStorage->getSpreadsheetFile($report)) {
+      $build['download_xlsx'] = Link::createFromRoute($this->t('Download Excel file'), 'reports.report.xlsx', ['report' => $report->getPluginId()], ['query' => $query])->toRenderable();
+      $build['download_xlsx']['#attributes']['class'] = ['button', 'button--primary'];
+    }
+    $counts = $report instanceof GeneratedReportInterface ? $this->reportStorage->getStatus($report)['rows'] ?? [] : [];
+    $rows = [];
+    foreach ($report->getSheets() as $id => $info) {
+      $rows[] = [$info['label'], $counts[$id] ?? ''];
+    }
+    $build['sheets'] = [
+      '#type' => 'table',
+      '#header' => [$this->t('Sheet'), $this->t('Rows')],
+      '#rows' => $rows,
+      '#attributes' => ['class' => ['reports-summary']],
+      '#attached' => ['library' => ['reports/summary']],
+    ];
+    return $build;
+  }
+
+  /**
+   * Downloads a report sheet as a CSV file.
+   */
+  public function csv(Request $request, string $report): Response {
+    $report = $this->getReport($request, $report);
+    $sheet = $this->getSheet($request, $report);
+    $filename = str_replace(':', '-', $report->getPluginId()) . ($sheet === 'default' ? '' : "-$sheet") . '.csv';
+
+    if ($report instanceof GeneratedReportInterface) {
+      $uri = $this->reportStorage->getFile($report, $sheet) ?? throw new NotFoundHttpException();
+      $response = new BinaryFileResponse($uri, 200, ['Content-Type' => 'text/csv; charset=utf-8'], FALSE);
+    }
+    else {
+      $response = new StreamedResponse(function () use ($report, $sheet): void {
+        $header = $report->getSheets()[$sheet]['header'];
+        $handle = fopen('php://output', 'w');
+        ReportWriter::writeCsvRow($handle, ReportWriter::getLabels($header));
+        foreach ($this->reportStorage->getRows($report, $sheet) as $row) {
+          ReportWriter::writeCsvRow($handle, ReportWriter::normalizeRow($header, $row));
+        }
+        fclose($handle);
+      }, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+    }
+    $response->headers->set('Content-Disposition', $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $filename));
+    return $response;
+  }
+
+  /**
+   * Downloads all sheets of a generated report as an Excel file.
+   */
+  public function xlsx(Request $request, string $report): Response {
+    $report = $this->getReport($request, $report);
+    $uri = $report instanceof GeneratedReportInterface ? $this->reportStorage->getSpreadsheetFile($report) : NULL;
+    if (!$uri) {
+      throw new NotFoundHttpException();
+    }
+    $response = new BinaryFileResponse($uri, 200, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'], FALSE);
+    $response->headers->set('Content-Disposition', $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, str_replace(':', '-', $report->getPluginId()) . '.xlsx'));
+    return $response;
+  }
+
+  /**
+   * Generates a report with the Batch API.
+   */
+  public function generate(Request $request, string $report): Response|array {
+    $report = $this->getReport($request, $report);
+    assert($report instanceof GeneratedReportInterface);
+    batch_set($this->reportGenerator->buildBatch($report));
+    return batch_process(Url::fromRoute('reports.report', ['report' => $report->getPluginId()], ['query' => $this->getQuery($report)]));
+  }
+
+  /**
+   * Gets the title of a report.
+   */
+  public function title(string $report): string|\Stringable {
+    return $this->reportManager->getDefinition($report)['label'];
+  }
+
+  /**
+   * Checks access to a report.
+   */
+  public function access(AccountInterface $account, string $report): AccessResultInterface {
+    if (!$this->reportManager->hasDefinition($report)) {
+      // Let the controller return a 404.
+      return AccessResult::allowed();
+    }
+    return $this->reportManager->createInstance($report)->access($account);
+  }
+
+  /**
+   * Checks access to generating a report.
+   */
+  public function generateAccess(AccountInterface $account, string $report): AccessResultInterface {
+    if (!$this->reportManager->hasDefinition($report)) {
+      return AccessResult::forbidden();
+    }
+    $instance = $this->reportManager->createInstance($report);
+    return AccessResult::allowedIf($instance instanceof GeneratedReportInterface && $this->reportStorage->isAvailable())
+      ->andIf($instance->access($account));
+  }
+
+  /**
+   * Creates a report with the configuration from the query string.
+   */
+  protected function getReport(Request $request, string $id): ReportInterface {
+    if (!$this->reportManager->hasDefinition($id)) {
+      throw new NotFoundHttpException();
+    }
+    return $this->reportManager->createInstance($id, $request->query->all('config'));
+  }
+
+  /**
+   * Gets the requested sheet of a report.
+   */
+  protected function getSheet(Request $request, ReportInterface $report): string {
+    $sheet = (string) $request->query->get('sheet', '');
+    return isset($report->getSheets()[$sheet]) ? $sheet : array_key_first($report->getSheets());
+  }
+
+  /**
+   * Gets the query string that keeps a report's configuration.
+   */
+  protected function getQuery(ReportInterface $report): array {
+    return $report->getConfiguration() ? ['config' => $report->getConfiguration()] : [];
+  }
+
+  /**
+   * Builds a table cell, turning URLs into links.
+   *
+   * @param mixed $cell
+   *   The cell.
+   * @param mixed $url
+   *   (optional) A URL to link the cell's text to: a \Drupal\Core\Url, or an
+   *   absolute URL string as stored for generated reports.
+   */
+  protected function buildCell(mixed $cell, mixed $url = NULL): mixed {
+    if (is_string($url) && $url !== '' && UrlHelper::isValid($url, TRUE)) {
+      $url = Url::fromUri($url);
+    }
+    if ($url instanceof Url && !$cell instanceof Link) {
+      return Link::fromTextAndUrl(ReportWriter::normalizeCell($cell), $url)->toRenderable();
+    }
+    return match (TRUE) {
+      $cell instanceof Link => $cell->toRenderable(),
+      $cell instanceof Url => Link::fromTextAndUrl($cell->setAbsolute()->toString(), $cell)->toRenderable(),
+      // Generated reports only have strings, so link absolute URLs.
+      is_string($cell) && preg_match('#^https?://#', $cell) && UrlHelper::isValid($cell, TRUE) => Link::fromTextAndUrl($cell, Url::fromUri($cell))->toRenderable(),
+      default => ['#plain_text' => ReportWriter::normalizeCell($cell)],
+    };
+  }
+
+  /**
+   * Builds the status of a generated report, with a link to (re)generate it.
+   */
+  protected function buildGeneratedStatus(GeneratedReportInterface $report, array $query): array {
+    if (!$this->reportStorage->isAvailable()) {
+      return ['#markup' => $this->t('This report needs the private file system, which is not configured.'), '#prefix' => '<div class="messages messages--error">', '#suffix' => '</div>'];
+    }
+    $status = $this->reportStorage->getStatus($report);
+    $stale = $this->reportStorage->isStale($report) || $this->reportStorage->hasChanged($report);
+    $build = [
+      '#type' => 'container',
+      'status' => ['#markup' => $this->describeStatus($report), '#prefix' => '<p>', '#suffix' => '</p>'],
+    ];
+    if ($stale) {
+      $build['status']['#prefix'] = '<div class="messages messages--warning">';
+      $build['status']['#suffix'] = ' ' . $this->t('It may be out of date.') . '</div>';
+    }
+    $build['generate'] = Link::createFromRoute(
+      ($status['completed'] ?? NULL) ? $this->t('Regenerate report') : $this->t('Generate report'),
+      'reports.report.generate',
+      ['report' => $report->getPluginId()],
+      ['query' => $query],
+    )->toRenderable();
+    $build['generate']['#attributes']['class'] = ['button', $stale || empty($status['completed']) ? 'button--primary' : 'button--small'];
+    // Reports with options have View and Regenerate buttons in their form.
+    $build['generate']['#access'] = !$report instanceof PluginFormInterface && $this->generateAccess($this->currentUser(), $report->getPluginId())->isAllowed();
+    return $build;
+  }
+
+  /**
+   * Describes when a generated report was generated.
+   */
+  protected function describeStatus(GeneratedReportInterface $report): string|\Stringable {
+    $status = $this->reportStorage->getStatus($report);
+    $completed = isset($status['completed']) ? $this->t('Generated @time ago.', ['@time' => $this->dateFormatter->formatTimeDiffSince($status['completed'])]) : $this->t('Not generated yet.');
+    if (($status['status'] ?? NULL) === 'complete' && $this->reportStorage->hasChanged($report)) {
+      $completed = $this->t('@completed The data it was built from has changed since.', ['@completed' => $completed]);
+    }
+    return match ($status['status'] ?? NULL) {
+      'generating' => $this->t('@completed Generating since @time ago, started by @user (the batch may have been interrupted).', [
+        '@completed' => $completed,
+        '@time' => $this->dateFormatter->formatTimeDiffSince($status['started']),
+        '@user' => $this->entityTypeManager()->getStorage('user')->load($status['uid'])?->getDisplayName() ?? $this->t('Anonymous'),
+      ]),
+      'failed' => $this->t('@completed The last attempt to generate it failed.', ['@completed' => $completed]),
+      default => $completed,
+    };
+  }
+
+}
