@@ -1,6 +1,6 @@
 # Reports
 
-Reports provides a plugin type for site reports. Reports are shown as sortable, searchable tables (with [DataTables](https://datatables.net/)) or like core's status report, can be downloaded as CSV (or Excel for reports with several sheets), and can be run with Drush.
+Reports provides a plugin type for site reports. Reports are shown as sortable, searchable tables (with [DataTables](https://datatables.net/) and filters above the table, like a Views exposed form) or like core's status report, can be downloaded as CSV or Excel, and can be run with Drush. While a table's filters or search hide rows, the rows shown can be downloaded as CSV, in their current order.
 
 Expensive reports are generated on demand with the Batch API and stored in the private file system. Each report shows when it was generated, and warns when it's older than a configurable interval or when the data it was built from has changed (using cache tags).
 

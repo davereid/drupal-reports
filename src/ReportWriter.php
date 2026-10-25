@@ -6,8 +6,12 @@ namespace Drupal\reports;
 
 use Drupal\Component\Render\MarkupInterface;
 use Drupal\Component\Render\PlainTextOutput;
+use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\FormulaCell;
+use OpenSpout\Common\Entity\Row;
 
 /**
  * Appends rows to a generated report's sheet files.
@@ -121,6 +125,39 @@ class ReportWriter {
    */
   public static function normalizeRow(array $header, array $row): array {
     return array_map(fn ($key) => static::normalizeCell($row[$key] ?? NULL), array_keys($header));
+  }
+
+  /**
+   * Converts a row of plain text cells to a spreadsheet row, with links.
+   *
+   * As on the report page, cells of columns with a 'url' column link to that
+   * column's URL, and cells with an absolute URL link to it. Links are
+   * HYPERLINK() formulas, since OpenSpout has no hyperlink cells; Excel
+   * limits their URLs to 255 characters, so longer ones stay plain text.
+   *
+   * @param array<string, mixed> $header
+   *   The sheet's columns, as in ReportInterface::getSheets().
+   * @param list<string> $values
+   *   The cells as plain text, in the header's order, e.g. a CSV row.
+   *
+   * @return \OpenSpout\Common\Entity\Row
+   *   The row.
+   */
+  public static function toSpreadsheetRow(array $header, array $values): Row {
+    $keys = array_keys($header);
+    $row = array_combine($keys, array_pad(array_slice(array_values($values), 0, count($keys)), count($keys), ''));
+    $cells = [];
+    foreach ($header as $key => $column) {
+      $text = (string) $row[$key];
+      $url = is_array($column) && isset($column['url']) ? (string) ($row[$column['url']] ?? '') : $text;
+      if ($text === '' || !preg_match('#^https?://#', $url) || strlen($url) > 255 || !UrlHelper::isValid($url, TRUE)) {
+        $cells[] = Cell::fromValue($text);
+        continue;
+      }
+      $quote = fn (string $value) => '"' . str_replace('"', '""', $value) . '"';
+      $cells[] = new FormulaCell('=HYPERLINK(' . $quote($url) . ($url === $text ? '' : ',' . $quote($text)) . ')', $text);
+    }
+    return new Row($cells);
   }
 
   /**

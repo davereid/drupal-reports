@@ -178,8 +178,10 @@ class ReportStorage {
       $sheet = $names ? $writer->addNewSheetAndMakeItCurrent() : $writer->getCurrentSheet();
       $sheet->setName($names[] = static::getSheetName((string) $info['label'], $names));
       $handle = fopen("$directory/$id.csv", 'r');
+      // The column labels, then the rows, with links.
+      $writer->addRow(Row::fromValues(fgetcsv($handle, escape: '') ?: []));
       while (($cells = fgetcsv($handle, escape: '')) !== FALSE) {
-        $writer->addRow(Row::fromValues($cells));
+        $writer->addRow(ReportWriter::toSpreadsheetRow($info['header'], $cells));
       }
       fclose($handle);
     }
@@ -197,7 +199,7 @@ class ReportStorage {
    * @return string
    *   At most 31 characters, without the characters Excel doesn't allow.
    */
-  protected static function getSheetName(string $label, array $existing): string {
+  public static function getSheetName(string $label, array $existing): string {
     $base = trim(preg_replace('/\s+/', ' ', str_replace(['\\', '/', '?', '*', ':', '[', ']'], ' ', $label)), " '") ?: 'Sheet';
     $name = mb_substr($base, 0, 31);
     for ($i = 2; in_array(mb_strtolower($name), array_map('mb_strtolower', $existing), TRUE); $i++) {
@@ -291,6 +293,15 @@ class ReportStorage {
     // files, which came from an earlier one.
     if ($status['status'] !== 'complete') {
       return TRUE;
+    }
+    // Invalidating tags only increases their checksum, so a lower one means
+    // the tags were purged, e.g. by drush cache:rebuild. That erases the
+    // history, so assume nothing changed and compare from now on.
+    $current = $this->checksum->getCurrentChecksum($status['tags']);
+    if ($current >= 0 && $current < (int) $status['checksum']) {
+      $status['checksum'] = $current;
+      $this->keyValue()->set($this->getKey($report), $status);
+      return FALSE;
     }
     return !$this->checksum->isValid($status['checksum'], $status['tags']);
   }

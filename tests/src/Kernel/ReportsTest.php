@@ -9,6 +9,7 @@ use Drupal\reports\ReportManager;
 use Drupal\reports\ReportStorage;
 use Drupal\reports\ReportWriter;
 use Drupal\Tests\user\Traits\UserCreationTrait;
+use OpenSpout\Common\Entity\Cell\FormulaCell;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -88,6 +89,30 @@ class ReportsTest extends KernelTestBase {
     $status = $this->container->get(ReportManager::class)->createInstance('reports_test_status');
     $row = iterator_to_array($status->getRows(), FALSE)[0];
     $this->assertSame(['cron', 'Cron', 'Late', 'Warning', 'Cron has not run.'], ReportWriter::normalizeRow($status->getSheets()['default']['header'], $row));
+  }
+
+  /**
+   * Tests converting rows to spreadsheet rows with links.
+   */
+  public function testSpreadsheetRow(): void {
+    $header = [
+      'title' => ['label' => 'Title', 'url' => 'page'],
+      'page' => ['label' => 'Page', 'hidden' => TRUE],
+      'link' => 'Link',
+      'text' => 'Text',
+    ];
+    $long = 'https://example.com/' . str_repeat('a', 250);
+    $cells = ReportWriter::toSpreadsheetRow($header, ['Say "hi"', 'https://example.com/1', $long, 'Plain'])->cells;
+    // Columns with a 'url' column link their text to it, with quotes doubled.
+    $this->assertInstanceOf(FormulaCell::class, $cells[0]);
+    $this->assertSame('=HYPERLINK("https://example.com/1","Say ""hi""")', $cells[0]->getValue());
+    $this->assertSame('Say "hi"', $cells[0]->getComputedValue());
+    // Absolute URLs link to themselves.
+    $this->assertSame('=HYPERLINK("https://example.com/1")', $cells[1]->getValue());
+    // URLs over Excel's 255 character limit, and other text, stay plain.
+    $this->assertNotInstanceOf(FormulaCell::class, $cells[2]);
+    $this->assertSame($long, $cells[2]->getValue());
+    $this->assertSame('Plain', $cells[3]->getValue());
   }
 
 }

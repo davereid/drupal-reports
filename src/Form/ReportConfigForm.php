@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use Drupal\Core\Plugin\PluginFormInterface;
+use Drupal\Core\Url;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\reports\ReportGenerator;
@@ -52,7 +53,7 @@ class ReportConfigForm extends FormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state, ?ReportInterface $report = NULL): array {
+  public function buildForm(array $form, FormStateInterface $form_state, ?ReportInterface $report = NULL, string $sheet = 'default'): array {
     assert($report instanceof PluginFormInterface);
     $form_state->set('report', $report);
     $form['config'] = [
@@ -63,17 +64,50 @@ class ReportConfigForm extends FormBase {
       '#tree' => TRUE,
     ];
     $form['config'] = $report->buildConfigurationForm($form['config'], SubformState::createForSubform($form['config'], $form, $form_state));
-    // The buttons are inside the details element, so they're hidden with it.
-    $form['config']['actions'] = ['#type' => 'actions', '#weight' => 100];
-    $form['config']['actions']['submit'] = ['#type' => 'submit', '#value' => $this->t('View report'), '#button_type' => 'primary'];
+    // The actions are outside the collapsible options, so they're always
+    // visible.
+    $form['actions'] = ['#type' => 'actions'];
+    $download_only = $this->reportStorage->isDownloadOnly($report);
+    $has_files = $report instanceof GeneratedReportInterface && $this->reportStorage->hasFiles($report);
+    $form['actions']['submit'] = [
+      '#type' => 'submit',
+      // Download-only reports can't be viewed: the button generates and
+      // downloads them, and the download link replaces it once they exist.
+      '#value' => $download_only ? $this->t('Download report') : $this->t('View report'),
+      '#button_type' => 'primary',
+      '#access' => !($download_only && $has_files),
+    ];
     if ($report instanceof GeneratedReportInterface) {
-      $form['config']['actions']['regenerate'] = [
+      $form['actions']['regenerate'] = [
         '#type' => 'submit',
         '#value' => $this->t('Regenerate report'),
         '#submit' => ['::submitForm', '::regenerate'],
         // Without files, View report generates the report.
         '#access' => $this->reportStorage->isAvailable() && $this->reportStorage->hasFiles($report),
       ];
+    }
+    // Downloads of the report with its current options.
+    $query = $report->getConfiguration() ? ['config' => $report->getConfiguration()] : [];
+    $parameters = ['report' => $report->getPluginId()];
+    $generated = $report instanceof GeneratedReportInterface;
+    $form['actions']['download'] = [
+      '#type' => 'link',
+      '#title' => $this->t('Download CSV'),
+      '#url' => Url::fromRoute('reports.report.csv', $parameters, ['query' => ['sheet' => $sheet] + $query]),
+      '#attributes' => ['class' => ['button']],
+      '#access' => !$this->reportStorage->isDownloadOnly($report) && (!$generated || $this->reportStorage->getFile($report, $sheet) !== NULL),
+    ];
+    $form['actions']['download_xlsx'] = [
+      '#type' => 'link',
+      '#title' => $this->t('Download Excel file'),
+      '#url' => Url::fromRoute('reports.report.xlsx', $parameters, ['query' => $query]),
+      '#attributes' => ['class' => ['button']],
+      // Stored spreadsheets are sent as they are; other reports are converted.
+      '#access' => !$generated || $has_files,
+    ];
+    if ($download_only) {
+      $form['actions']['download_xlsx']['#attributes']['class'][] = 'button--primary';
+      $form['actions']['download_xlsx']['#weight'] = -10;
     }
     return $form;
   }
@@ -91,12 +125,31 @@ class ReportConfigForm extends FormBase {
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     $report = $form_state->get('report');
     $report->submitConfigurationForm($form['config'], SubformState::createForSubform($form['config'], $form, $form_state));
-    $form_state->setRedirect('reports.report', ['report' => $report->getPluginId()], ['query' => ['config' => $report->getConfiguration()]]);
+    $this->setReportRedirect($form_state, FALSE);
     // Form API runs the batch, then follows the redirect to the report.
     if ($report instanceof GeneratedReportInterface && $this->reportStorage->isAvailable() && !$this->reportStorage->hasFiles($report)) {
       $form_state->set('generating', TRUE);
+      $this->setReportRedirect($form_state, TRUE);
       batch_set($this->reportGenerator->buildBatch($report));
     }
+  }
+
+  /**
+   * Redirects to the report with its configuration.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param bool $generating
+   *   TRUE if the report is being generated: download-only reports are then
+   *   downloaded when the page loads.
+   */
+  protected function setReportRedirect(FormStateInterface $form_state, bool $generating): void {
+    $report = $form_state->get('report');
+    $query = ['config' => $report->getConfiguration()];
+    if ($generating && $this->reportStorage->isDownloadOnly($report)) {
+      $query['download'] = 1;
+    }
+    $form_state->setRedirect('reports.report', ['report' => $report->getPluginId()], ['query' => $query]);
   }
 
   /**
@@ -105,6 +158,7 @@ class ReportConfigForm extends FormBase {
   public function regenerate(array &$form, FormStateInterface $form_state): void {
     // submitForm() already started a batch if there was no file.
     if (!$form_state->get('generating')) {
+      $this->setReportRedirect($form_state, TRUE);
       batch_set($this->reportGenerator->buildBatch($form_state->get('report')));
     }
   }

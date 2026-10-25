@@ -118,6 +118,13 @@ class GeneratedReportTest extends KernelTestBase {
     EntityTest::create(['name' => 'Third'])->save();
     $this->assertTrue($this->storage->hasChanged($report));
 
+    // A cache rebuild purges cache tags, which lowers their checksum: that
+    // isn't a change, and later changes are detected again.
+    $this->container->get('cache_tags.invalidator')->purge();
+    $this->assertFalse($this->storage->hasChanged($report));
+    EntityTest::create(['name' => 'Fourth'])->save();
+    $this->assertTrue($this->storage->hasChanged($report));
+
     // Reports are stored per configuration.
     $other = $this->container->get(ReportManager::class)->createInstance('absolute_urls', ['domains' => 'other.example.org']);
     $this->assertNull($this->storage->getFile($other));

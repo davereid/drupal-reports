@@ -15,34 +15,22 @@ DataTables:
         type: external
         minified: true
 
-DataTables.ColumnControl:
-  remote: https://github.com/DataTables/ColumnControl
-  version: 2.1.2
-  license:
-    name: MIT
-    url: https://github.com/DataTables/ColumnControl/blob/main/License.txt
-    gpl-compatible: true
-  js:
-    https://cdn.datatables.net/columncontrol/2.1.2/js/dataTables.columnControl.min.js:
-      type: external
-      minified: true
-  css:
-    theme:
-      https://cdn.datatables.net/columncontrol/2.1.2/css/columnControl.dataTables.min.css:
-        type: external
-        minified: true
-  dependencies:
-    - reports/DataTables
-
 report:
   js:
     js/reports.js: {}
   dependencies:
     - core/drupal
     - core/once
-    - reports/DataTables.ColumnControl
+    - reports/DataTables
 
 summary:
   css:
     component:
       css/reports.summary.css: {}
+
+download:
+  js:
+    js/download.js: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
