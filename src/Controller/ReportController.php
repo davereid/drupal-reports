@@ -26,6 +26,7 @@ use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -76,7 +77,6 @@ class ReportController extends ControllerBase {
     $definition = $report->getPluginDefinition();
     $sheets = $report->getSheets();
     $sheet = $this->getSheet($request, $report);
-    $query = $this->getQuery($report);
     $build = ['#cache' => ['max-age' => 0]];
 
     if ($summary = $report->getSummary()) {
@@ -101,7 +101,7 @@ class ReportController extends ControllerBase {
     }
 
     if ($report instanceof GeneratedReportInterface) {
-      $build['status'] = $this->buildGeneratedStatus($report, $query);
+      $build['status'] = $this->buildGeneratedStatus($report);
       if ($this->reportStorage->isDownloadOnly($report) ? !$this->reportStorage->hasFiles($report) : !$this->reportStorage->getFile($report, $sheet)) {
         return $build;
       }
@@ -111,9 +111,9 @@ class ReportController extends ControllerBase {
       // Just generated: start the download.
       if ($request->query->getBoolean('download') && $report instanceof GeneratedReportInterface && $this->reportStorage->hasFiles($report)) {
         $build['#attached']['library'][] = 'reports/download';
-        $build['#attached']['drupalSettings']['reports']['download'] = Url::fromRoute('reports.report.xlsx', ['report' => $report->getPluginId()], ['query' => $query])->toString();
+        $build['#attached']['drupalSettings']['reports']['download'] = $report->toUrl('xlsx')->toString();
       }
-      return $build + $this->buildDownloads($report, $query);
+      return $build + $this->buildDownloads($report);
     }
 
     if (count($sheets) > 1) {
@@ -121,7 +121,7 @@ class ReportController extends ControllerBase {
       foreach ($sheets as $id => $info) {
         $links[$id] = [
           'title' => $info['label'],
-          'url' => Url::fromRoute('reports.report', ['report' => $report->getPluginId()], ['query' => ['sheet' => $id] + $query]),
+          'url' => $report->toUrl('canonical', ['query' => ['sheet' => $id]]),
         ];
       }
       $build['sheets'] = ['#theme' => 'links', '#links' => $links, '#attributes' => ['class' => ['tabs', 'secondary']]];
@@ -135,9 +135,9 @@ class ReportController extends ControllerBase {
         $build['actions']['generate'] = $build['status']['generate'];
         unset($build['status']['generate']);
       }
-      $build['actions']['download'] = Link::createFromRoute($this->t('Download CSV'), 'reports.report.csv', ['report' => $report->getPluginId()], ['query' => ['sheet' => $sheet] + $query])->toRenderable();
+      $build['actions']['download'] = Link::fromTextAndUrl($this->t('Download CSV'), $report->toUrl('csv', ['query' => ['sheet' => $sheet]]))->toRenderable();
       $build['actions']['download']['#attributes']['class'] = ['button'];
-      $build['actions']['download_xlsx'] = Link::createFromRoute($this->t('Download Excel file'), 'reports.report.xlsx', ['report' => $report->getPluginId()], ['query' => $query])->toRenderable();
+      $build['actions']['download_xlsx'] = Link::fromTextAndUrl($this->t('Download Excel file'), $report->toUrl('xlsx'))->toRenderable();
       $build['actions']['download_xlsx']['#attributes']['class'] = ['button'];
     }
     // The report's own operations, as buttons.
@@ -203,11 +203,11 @@ class ReportController extends ControllerBase {
    * An Excel file of all sheets, and a table of the sheets with their number
    * of rows, as counted when the report was generated.
    */
-  protected function buildDownloads(ReportInterface $report, array $query): array {
+  protected function buildDownloads(ReportInterface $report): array {
     $build = [];
     // Reports with options have the download in their form's actions.
     if (!$report instanceof PluginFormInterface && $report instanceof GeneratedReportInterface && $this->reportStorage->getSpreadsheetFile($report)) {
-      $build['download_xlsx'] = Link::createFromRoute($this->t('Download Excel file'), 'reports.report.xlsx', ['report' => $report->getPluginId()], ['query' => $query])->toRenderable();
+      $build['download_xlsx'] = Link::fromTextAndUrl($this->t('Download Excel file'), $report->toUrl('xlsx'))->toRenderable();
       $build['download_xlsx']['#attributes']['class'] = ['button', 'button--primary'];
     }
     $counts = $report instanceof GeneratedReportInterface ? $this->reportStorage->getStatus($report)['rows'] ?? [] : [];
@@ -294,11 +294,11 @@ class ReportController extends ControllerBase {
     }
     catch (ReportGeneratingException $exception) {
       $this->messenger()->addError($exception->getMessage());
-      return $this->redirect('reports.report', ['report' => $report->getPluginId()], ['query' => $this->getQuery($report)]);
+      return new RedirectResponse($report->toUrl()->setAbsolute()->toString());
     }
     // Download-only reports are downloaded when the page loads.
     $download = $this->reportStorage->isDownloadOnly($report) ? ['download' => 1] : [];
-    return batch_process(Url::fromRoute('reports.report', ['report' => $report->getPluginId()], ['query' => $this->getQuery($report) + $download]));
+    return batch_process($report->toUrl('canonical', ['query' => $download]));
   }
 
   /**
@@ -332,13 +332,6 @@ class ReportController extends ControllerBase {
   }
 
   /**
-   * Gets the query string that keeps a report's configuration.
-   */
-  protected function getQuery(ReportInterface $report): array {
-    return $report->getConfiguration() ? ['config' => $report->getConfiguration()] : [];
-  }
-
-  /**
    * Builds a table cell, turning URLs into links.
    *
    * @param mixed $cell
@@ -366,7 +359,7 @@ class ReportController extends ControllerBase {
   /**
    * Builds the status of a generated report, with a link to (re)generate it.
    */
-  protected function buildGeneratedStatus(GeneratedReportInterface $report, array $query): array {
+  protected function buildGeneratedStatus(GeneratedReportInterface $report): array {
     $status = $this->reportStorage->getStatus($report);
     $stale = $this->reportStorage->isStale($report) || $this->reportStorage->hasChanged($report);
     $build = [
@@ -377,16 +370,14 @@ class ReportController extends ControllerBase {
       $build['status']['#prefix'] = '<div class="messages messages--warning">';
       $build['status']['#suffix'] = ' ' . $this->t('It may be out of date.') . '</div>';
     }
-    $build['generate'] = Link::createFromRoute(
+    $build['generate'] = Link::fromTextAndUrl(
       match (TRUE) {
         isset($status['completed']) => $this->t('Regenerate report'),
         // Generating a download-only report also downloads it.
         $this->reportStorage->isDownloadOnly($report) => $this->t('Download report'),
         default => $this->t('Generate report'),
       },
-      'reports.report.generate',
-      ['report' => $report->getPluginId()],
-      ['query' => $query],
+      $report->toUrl('generate'),
     )->toRenderable();
     $build['generate']['#attributes']['class'] = $stale || empty($status['completed']) ? ['button', 'button--primary'] : ['button'];
     // Reports with options have View and Regenerate buttons in their form.

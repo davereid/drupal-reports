@@ -9,6 +9,7 @@ use Drupal\Component\Plugin\PluginInspectionInterface;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Cache\CacheableDependencyInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
 
 /**
  * A report.
@@ -115,6 +116,24 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
    *   Operations keyed by name, as for the 'operations' element.
    */
   public function getOperations(): array;
+
+  /**
+   * Gets a URL of the report, with its current configuration.
+   *
+   * @param string $rel
+   *   (optional) Which URL: 'canonical' (the report page, default), 'csv',
+   *   'xlsx' or 'generate'.
+   * @param array $options
+   *   (optional) Options for the URL, as for \Drupal\Core\Url::fromRoute().
+   *   The report's configuration is added to the query string, as 'config'.
+   *
+   * @return \Drupal\Core\Url
+   *   The URL.
+   *
+   * @throws \InvalidArgumentException
+   *   If $rel isn't one of the above.
+   */
+  public function toUrl(string $rel = 'canonical', array $options = []): Url;
 
   /**
    * Checks access to the report.

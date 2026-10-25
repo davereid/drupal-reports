@@ -137,6 +137,24 @@ class ReportsTest extends KernelTestBase {
   }
 
   /**
+   * Tests report URLs.
+   */
+  public function testToUrl(): void {
+    $manager = $this->container->get(ReportManager::class);
+    $report = $manager->createInstance('reports_test_table', ['count' => 3]);
+    $url = $report->toUrl('csv', ['query' => ['sheet' => 'default']]);
+    $this->assertSame('reports.report.csv', $url->getRouteName());
+    $this->assertSame(['report' => 'reports_test_table'], $url->getRouteParameters());
+    // The configuration is kept in the query string.
+    $this->assertSame(['sheet' => 'default', 'config' => ['count' => 3]], $url->getOption('query'));
+    // Reports without options have no configuration in the URL.
+    $this->assertNull($manager->createInstance('reports_test_status')->toUrl()->getOption('query'));
+
+    $this->expectException(\InvalidArgumentException::class);
+    $report->toUrl('missing');
+  }
+
+  /**
    * Tests converting rows to spreadsheet rows with links.
    */
   public function testSpreadsheetRow(): void {

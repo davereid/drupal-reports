@@ -8,7 +8,6 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use Drupal\Core\Plugin\PluginFormInterface;
-use Drupal\Core\Url;
 use Drupal\reports\Exception\ReportGeneratingException;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
@@ -95,20 +94,18 @@ class ReportConfigForm extends FormBase {
       ];
     }
     // Downloads of the report with its current options.
-    $query = $report->getConfiguration() ? ['config' => $report->getConfiguration()] : [];
-    $parameters = ['report' => $report->getPluginId()];
     $generated = $report instanceof GeneratedReportInterface;
     $form['actions']['download'] = [
       '#type' => 'link',
       '#title' => $this->t('Download CSV'),
-      '#url' => Url::fromRoute('reports.report.csv', $parameters, ['query' => ['sheet' => $sheet] + $query]),
+      '#url' => $report->toUrl('csv', ['query' => ['sheet' => $sheet]]),
       '#attributes' => ['class' => ['button']],
       '#access' => !$this->reportStorage->isDownloadOnly($report) && (!$generated || $this->reportStorage->getFile($report, $sheet) !== NULL),
     ];
     $form['actions']['download_xlsx'] = [
       '#type' => 'link',
       '#title' => $this->t('Download Excel file'),
-      '#url' => Url::fromRoute('reports.report.xlsx', $parameters, ['query' => $query]),
+      '#url' => $report->toUrl('xlsx'),
       '#attributes' => ['class' => ['button']],
       // Stored spreadsheets are sent as they are; other reports are converted.
       '#access' => !$generated || $has_files,
@@ -152,11 +149,8 @@ class ReportConfigForm extends FormBase {
    */
   protected function setReportRedirect(FormStateInterface $form_state, bool $generating): void {
     $report = $form_state->get('report');
-    $query = ['config' => $report->getConfiguration()];
-    if ($generating && $this->reportStorage->isDownloadOnly($report)) {
-      $query['download'] = 1;
-    }
-    $form_state->setRedirect('reports.report', ['report' => $report->getPluginId()], ['query' => $query]);
+    $query = $generating && $this->reportStorage->isDownloadOnly($report) ? ['download' => 1] : [];
+    $form_state->setRedirectUrl($report->toUrl('canonical', ['query' => $query]));
   }
 
   /**

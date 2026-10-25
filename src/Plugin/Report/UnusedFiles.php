@@ -7,6 +7,7 @@ namespace Drupal\reports\Plugin\Report;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
@@ -48,6 +49,11 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
   protected DateFormatterInterface $dateFormatter;
 
   /**
+   * The entity type manager.
+   */
+  protected EntityTypeManagerInterface $entityTypeManager;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
@@ -55,6 +61,7 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
     $instance->database = $container->get('database');
     $instance->fileUrlGenerator = $container->get('file_url_generator');
     $instance->dateFormatter = $container->get('date.formatter');
+    $instance->entityTypeManager = $container->get('entity_type.manager');
     return $instance;
   }
 
@@ -155,6 +162,12 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
       ->range(0, $limit)
       ->execute()
       ->fetchAll();
+    // Core's file delete form falls back to the file's canonical URL for its
+    // Cancel link, which files only have with modules like File Entity, so
+    // without one it needs a destination.
+    $query = $this->entityTypeManager->getDefinition('file')->hasLinkTemplate('canonical')
+      ? []
+      : ['destination' => $this->toUrl()->toString()];
     foreach ($files as $file) {
       $writer->addRow([
         'filename' => $file->filename,
@@ -165,7 +178,7 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
         'bytes' => $file->filesize,
         'status' => $file->status ? $this->t('Permanent') : $this->t('Temporary'),
         'created' => $this->dateFormatter->format((int) $file->created, 'short'),
-        'edit_url' => Url::fromRoute('entity.file.delete_form', ['file' => $file->fid]),
+        'edit_url' => Url::fromRoute('entity.file.delete_form', ['file' => $file->fid], ['query' => $query]),
       ]);
       $context['sandbox']['last_fid'] = $file->fid;
     }

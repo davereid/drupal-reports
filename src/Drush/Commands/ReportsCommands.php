@@ -6,7 +6,6 @@ namespace Drupal\reports\Drush\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
-use Drupal\Core\Url;
 use Drupal\reports\Exception\ReportGeneratingException;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
@@ -41,16 +40,35 @@ class ReportsCommands extends DrushCommands {
   public function list(array $options = ['format' => 'table']): RowsOfFields {
     $rows = [];
     foreach ($this->reportManager->getDefinitions() as $id => $definition) {
+      // Reports that don't apply to the site aren't listed.
+      if (!$this->reportManager->isApplicable($id)) {
+        continue;
+      }
       $report = $this->reportManager->createInstance($id);
-      $status = $report instanceof GeneratedReportInterface ? $this->reportStorage->getStatus($report) : NULL;
       $rows[$id] = [
         'id' => $id,
         'label' => (string) $definition['label'],
         'type' => $report instanceof GeneratedReportInterface ? 'generated' : 'realtime',
-        'status' => isset($status['completed']) ? date('Y-m-d H:i:s', $status['completed']) . ($status['status'] === 'complete' ? '' : " ({$status['status']})") : ($status['status'] ?? ''),
+        'status' => $report instanceof GeneratedReportInterface ? $this->describeStatus($report) : '',
       ];
     }
+    uasort($rows, fn ($a, $b) => strnatcasecmp($a['label'], $b['label']));
     return new RowsOfFields($rows);
+  }
+
+  /**
+   * Describes a generated report's status with its default options.
+   */
+  protected function describeStatus(GeneratedReportInterface $report): string {
+    $status = $this->reportStorage->getStatus($report);
+    $state = match (TRUE) {
+      $this->reportStorage->isGenerating($report) => dt('generating'),
+      ($status['status'] ?? NULL) === 'failed' => dt('last attempt failed'),
+      ($status['status'] ?? NULL) === 'generating' => dt('last attempt interrupted'),
+      default => '',
+    };
+    $completed = isset($status['completed']) ? date('Y-m-d H:i:s', $status['completed']) : dt('Not generated');
+    return $state ? "$completed ($state)" : $completed;
   }
 
   /**
@@ -103,11 +121,10 @@ class ReportsCommands extends DrushCommands {
     }
 
     if ($download_only) {
-      $query = $report->getConfiguration() ? ['config' => $report->getConfiguration()] : [];
-      $route = $report instanceof GeneratedReportInterface && $this->reportStorage->getSpreadsheetFile($report) ? 'reports.report.xlsx' : 'reports.report';
+      $rel = $report instanceof GeneratedReportInterface && $this->reportStorage->getSpreadsheetFile($report) ? 'xlsx' : 'canonical';
       $this->logger()->success(dt('@report is download only. Download it from: @url', [
         '@report' => $report->getPluginDefinition()['label'],
-        '@url' => Url::fromRoute($route, ['report' => $id], ['query' => $query, 'absolute' => TRUE])->toString(),
+        '@url' => $report->toUrl($rel, ['absolute' => TRUE])->toString(),
       ]));
       return NULL;
     }

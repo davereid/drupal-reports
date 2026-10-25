@@ -99,14 +99,18 @@ class ReportGenerator {
    *   The results set by the operations.
    */
   public static function finishBatch(bool $success, array $results): void {
+    $report = isset($results['report']) ? static::createReport(...$results['report']) : NULL;
+    // Named, so the messages of several reports generated together, e.g. with
+    // drush reports:generate --all, aren't merged as duplicates.
+    $label = $report?->getPluginDefinition()['label'] ?? t('The report');
     if (!empty($results['completed'])) {
-      \Drupal::messenger()->addStatus(t('The report has been generated.'));
+      \Drupal::messenger()->addStatus(t('@report has been generated.', ['@report' => $label]));
       return;
     }
-    if (isset($results['report'])) {
-      \Drupal::service(ReportStorage::class)->finish(static::createReport(...$results['report']), FALSE);
+    if ($report) {
+      \Drupal::service(ReportStorage::class)->finish($report, FALSE);
     }
-    \Drupal::messenger()->addError(t('The report could not be generated.'));
+    \Drupal::messenger()->addError(t('@report could not be generated.', ['@report' => $label]));
   }
 
   /**

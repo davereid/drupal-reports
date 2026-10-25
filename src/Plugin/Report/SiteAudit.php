@@ -359,7 +359,10 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         $this->addCustomFieldRows($field, $widget, $formatter, $writer, "{$entity_type_id}__{$bundle}");
       }
     }
-    $context['message'] = $this->t('Checking @bundle.', ['@bundle' => $bundle]);
+    $context['message'] = $this->t('Checking @entity_type: @bundle.', [
+      '@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel(),
+      '@bundle' => $this->bundleInfo->getBundleInfo($entity_type_id)[$bundle]['label'] ?? $bundle,
+    ]);
   }
 
   /**

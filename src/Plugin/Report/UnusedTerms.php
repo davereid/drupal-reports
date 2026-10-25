@@ -171,7 +171,9 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface, 
         $writer->addRow($this->getEntityRow($term));
       }
     }
-    $context['message'] = $this->t('Checking @vocabulary terms.', ['@vocabulary' => $vocabulary]);
+    $context['message'] = $this->t('Checking @vocabulary terms.', [
+      '@vocabulary' => $this->entityTypeHelper->getBundleLabel('taxonomy_term', $vocabulary),
+    ]);
   }
 
   /**

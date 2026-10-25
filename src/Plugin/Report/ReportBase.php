@@ -11,6 +11,7 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginBase;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Site\Settings;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -128,6 +129,25 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
    */
   public function getRequirements(): array {
     return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function toUrl(string $rel = 'canonical', array $options = []): Url {
+    $routes = [
+      'canonical' => 'reports.report',
+      'csv' => 'reports.report.csv',
+      'xlsx' => 'reports.report.xlsx',
+      'generate' => 'reports.report.generate',
+    ];
+    if (!isset($routes[$rel])) {
+      throw new \InvalidArgumentException("Reports have no '$rel' URL.");
+    }
+    if ($this->configuration) {
+      $options['query'] = ($options['query'] ?? []) + ['config' => $this->configuration];
+    }
+    return Url::fromRoute($routes[$rel], ['report' => $this->getPluginId()], $options);
   }
 
   /**

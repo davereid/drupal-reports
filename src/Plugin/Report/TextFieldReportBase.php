@@ -307,7 +307,7 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
     }
     $context['message'] = $this->t('Checking @field on @entity_type.', [
       '@field' => $field['label'],
-      '@entity_type' => $entity_type_id,
+      '@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel(),
     ]);
   }
 
