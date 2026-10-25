@@ -186,7 +186,10 @@ abstract class EntityReportBase extends ReportBase {
   /**
    * Loads the next batch of entities of a query, for a batch operation.
    *
-   * Keeps the offset in the batch sandbox, and sets the progress.
+   * Keeps the offset in the batch sandbox, and sets the progress. For
+   * progress messages, $context['sandbox']['done'] and
+   * $context['sandbox']['total'] are the number of entities loaded so far,
+   * including this pass, and in all.
    *
    * @param string $entity_type_id
    *   The entity type ID.
@@ -211,6 +214,7 @@ abstract class EntityReportBase extends ReportBase {
       }
       $ids = $build_query()->range($context['sandbox']['offset'], $limit)->execute();
       $context['sandbox']['offset'] += $limit;
+      $context['sandbox']['done'] = min($context['sandbox']['offset'], $context['sandbox']['total']);
       $context['finished'] = count($ids) < $limit || $context['sandbox']['offset'] >= $context['sandbox']['total'] ? 1 : $context['sandbox']['offset'] / $context['sandbox']['total'];
       return $this->entityTypeManager->getStorage($entity_type_id)->loadMultiple($ids);
     });
