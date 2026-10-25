@@ -12,6 +12,7 @@ use Drupal\Core\Url;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\reports\ReportGenerator;
+use Drupal\reports\ReportManager;
 use Drupal\reports\ReportStorage;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -34,12 +35,18 @@ class ReportConfigForm extends FormBase {
   protected ReportStorage $reportStorage;
 
   /**
+   * The report plugin manager.
+   */
+  protected ReportManager $reportManager;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): static {
     $instance = parent::create($container);
     $instance->reportGenerator = $container->get(ReportGenerator::class);
     $instance->reportStorage = $container->get(ReportStorage::class);
+    $instance->reportManager = $container->get(ReportManager::class);
     return $instance;
   }
 
@@ -83,7 +90,7 @@ class ReportConfigForm extends FormBase {
         '#value' => $this->t('Regenerate report'),
         '#submit' => ['::submitForm', '::regenerate'],
         // Without files, View report generates the report.
-        '#access' => $this->reportStorage->isAvailable() && $this->reportStorage->hasFiles($report),
+        '#access' => $this->reportManager->isUsable($report) && $this->reportStorage->hasFiles($report),
       ];
     }
     // Downloads of the report with its current options.
@@ -127,7 +134,7 @@ class ReportConfigForm extends FormBase {
     $report->submitConfigurationForm($form['config'], SubformState::createForSubform($form['config'], $form, $form_state));
     $this->setReportRedirect($form_state, FALSE);
     // Form API runs the batch, then follows the redirect to the report.
-    if ($report instanceof GeneratedReportInterface && $this->reportStorage->isAvailable() && !$this->reportStorage->hasFiles($report)) {
+    if ($report instanceof GeneratedReportInterface && $this->reportManager->isUsable($report) && !$this->reportStorage->hasFiles($report)) {
       $form_state->set('generating', TRUE);
       $this->setReportRedirect($form_state, TRUE);
       batch_set($this->reportGenerator->buildBatch($report));

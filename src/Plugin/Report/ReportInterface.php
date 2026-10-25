@@ -69,6 +69,34 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
   public function getSummary(): array;
 
   /**
+   * Checks whether the report applies to this site at all.
+   *
+   * Reports that don't apply, e.g. because an optional module they report on
+   * isn't installed, have no menu link under Reports, and are left out of
+   * the status report and drush reports:generate --all. Their page still
+   * works. For problems a site can fix, such as missing storage, use
+   * getRequirements() instead.
+   *
+   * @return bool
+   *   TRUE if the report applies.
+   */
+  public function isApplicable(): bool;
+
+  /**
+   * Checks whether the report can be used on this site.
+   *
+   * Use it for what the report needs, such as a module or fields to check.
+   * Keep it cheap: the status report checks every report. Storage for
+   * generated reports is checked by ReportManager::getRequirements().
+   *
+   * @return array<string, array{title: string|\Stringable, value?: mixed, description?: string|\Stringable, severity: \Drupal\Core\Extension\Requirement\RequirementSeverity}>
+   *   Requirements keyed by name, as for hook_runtime_requirements(). An
+   *   error prevents viewing and generating the report; a warning is shown
+   *   with it.
+   */
+  public function getRequirements(): array;
+
+  /**
    * Gets the report's own operations.
    *
    * They're shown as buttons on the report page, next to the download

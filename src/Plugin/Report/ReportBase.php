@@ -119,6 +119,20 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
   /**
    * {@inheritdoc}
    */
+  public function isApplicable(): bool {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getRequirements(): array {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getOperations(): array {
     return [];
   }

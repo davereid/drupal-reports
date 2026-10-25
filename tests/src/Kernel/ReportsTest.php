@@ -66,12 +66,16 @@ class ReportsTest extends KernelTestBase {
     $default = $manager->createInstance('reports_test_table');
     $this->assertSame(['count' => 2], $default->getConfiguration());
     $this->assertNotSame($storage->getKey($default), $storage->getKey($report));
-    // Reports with options always have a hash, even for the defaults, and the
-    // defaults given explicitly are stored as the defaults.
+    // The defaults given explicitly are stored as the defaults.
     $this->assertStringStartsWith('reports_test_table--', $storage->getKey($default));
     $this->assertSame($storage->getKey($default), $storage->getKey($manager->createInstance('reports_test_table', ['count' => 2])));
-    // Reports without options don't.
-    $this->assertSame('reports_test_status', $storage->getKey($manager->createInstance('reports_test_status')));
+    // Reports without options also have a hash, so file names can't be
+    // guessed, e.g. in a public directory.
+    $status_key = $storage->getKey($manager->createInstance('reports_test_status'));
+    $this->assertStringStartsWith('reports_test_status--', $status_key);
+    // The hash depends on the site's hash salt.
+    $this->setSetting('hash_salt', 'another salt');
+    $this->assertNotSame($status_key, $storage->getKey($manager->createInstance('reports_test_status')));
   }
 
   /**
@@ -89,6 +93,26 @@ class ReportsTest extends KernelTestBase {
     $status = $this->container->get(ReportManager::class)->createInstance('reports_test_status');
     $row = iterator_to_array($status->getRows(), FALSE)[0];
     $this->assertSame(['cron', 'Cron', 'Late', 'Warning', 'Cron has not run.'], ReportWriter::normalizeRow($status->getSheets()['default']['header'], $row));
+  }
+
+  /**
+   * Tests requirements, and menu links of reports that don't apply.
+   */
+  public function testRequirements(): void {
+    $manager = $this->container->get(ReportManager::class);
+    $table = $manager->createInstance('reports_test_table');
+    $this->assertTrue($table->isApplicable());
+    $this->assertSame([], $manager->getRequirements($table));
+    $this->assertTrue($manager->isUsable($table));
+
+    $inapplicable = $manager->createInstance('reports_test_inapplicable');
+    $this->assertFalse($inapplicable->isApplicable());
+    $this->assertFalse($manager->isUsable($inapplicable));
+
+    // Reports that don't apply have no menu link.
+    $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
+    $this->assertArrayHasKey('reports.report:reports_test_table', $links);
+    $this->assertArrayNotHasKey('reports.report:reports_test_inapplicable', $links);
   }
 
   /**

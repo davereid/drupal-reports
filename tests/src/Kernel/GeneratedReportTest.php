@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\reports\Kernel;
 
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\entity_test\Entity\EntityTest;
 use Drupal\entity_test\Entity\EntityTestMulRevPub;
 use Drupal\entity_test\EntityTestHelper;
@@ -218,6 +219,44 @@ class GeneratedReportTest extends KernelTestBase {
   }
 
   /**
+   * Tests the reports directory setting.
+   */
+  public function testDirectory(): void {
+    $this->assertSame('private://reports', $this->storage->getDirectory());
+    $this->assertTrue($this->storage->isAvailable());
+
+    // Another writable directory can be used.
+    $this->setSetting('reports_directory', 'temporary://my-reports/');
+    $this->assertSame('temporary://my-reports', $this->storage->getDirectory());
+    $this->assertTrue($this->storage->isAvailable());
+    $this->assertTrue($this->storage->isTemporary());
+    $report = $this->generate('absolute_urls', ['domains' => 'example.com']);
+    $this->assertStringStartsWith('temporary://my-reports/', $this->storage->getFile($report));
+
+    // The public file system can be used, with a warning.
+    $manager = $this->container->get(ReportManager::class);
+    $this->setSetting('reports_directory', 'public://reports');
+    $this->assertTrue($this->storage->isAvailable());
+    $this->assertTrue($this->storage->isPublic());
+    $report = $manager->createInstance('content_counts');
+    $this->assertSame(RequirementSeverity::Warning, $manager->getRequirements($report)['reports_storage']['severity']);
+    $this->assertTrue($manager->isUsable($report));
+    // The status report only shows storage, not each report's requirements.
+    $this->assertSame(['reports_storage'], array_keys($manager->getGlobalRequirements()));
+
+    // Unknown stream wrappers are refused.
+    foreach (['missing://reports'] as $directory) {
+      $this->setSetting('reports_directory', $directory);
+      $this->assertFalse($this->storage->isAvailable(), $directory);
+      $this->assertNotNull($this->storage->getUnavailableReason(), $directory);
+      // Generated reports then have an error requirement and can't be used.
+      $report = $this->container->get(ReportManager::class)->createInstance('content_counts');
+      $this->assertSame(RequirementSeverity::Error, $this->container->get(ReportManager::class)->getRequirements($report)['reports_storage']['severity'], $directory);
+      $this->assertFalse($this->container->get(ReportManager::class)->isUsable($report), $directory);
+    }
+  }
+
+  /**
    * Tests deleting old and unknown generated report files.
    */
   public function testDeleteExpired(): void {
@@ -226,13 +265,13 @@ class GeneratedReportTest extends KernelTestBase {
     $key = $this->storage->getKey($report);
     // A file nothing generated, and a temporary directory from a batch that
     // was abandoned.
-    file_put_contents(ReportStorage::DIRECTORY . '/unknown.csv', "x\n");
-    mkdir(ReportStorage::DIRECTORY . '/abandoned.tmp');
+    file_put_contents($this->storage->getDirectory() . '/unknown.csv', "x\n");
+    mkdir($this->storage->getDirectory() . '/abandoned.tmp');
 
     $this->assertSame(2, $this->storage->deleteExpired());
     $this->assertFileExists($file);
-    $this->assertFileDoesNotExist(ReportStorage::DIRECTORY . '/unknown.csv');
-    $this->assertDirectoryDoesNotExist(ReportStorage::DIRECTORY . '/abandoned.tmp');
+    $this->assertFileDoesNotExist($this->storage->getDirectory() . '/unknown.csv');
+    $this->assertDirectoryDoesNotExist($this->storage->getDirectory() . '/abandoned.tmp');
 
     // Reports completed longer ago than delete_after are deleted with their
     // status.

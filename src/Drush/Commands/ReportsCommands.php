@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\reports\Drush\Commands;
 
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Url;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
@@ -76,6 +77,9 @@ class ReportsCommands extends DrushCommands {
       throw new \InvalidArgumentException(dt('The report has no sheet named @sheet. Sheets: @sheets', ['@sheet' => $options['sheet'], '@sheets' => implode(', ', array_keys($sheets))]));
     }
 
+    if ($errors = $this->getRequirementErrors($report)) {
+      throw new \RuntimeException($errors);
+    }
     if ($report instanceof GeneratedReportInterface) {
       $status = $this->reportStorage->getStatus($report);
       $exists = $download_only ? $this->reportStorage->hasFiles($report) : $this->reportStorage->getFile($report, $options['sheet']) !== NULL;
@@ -119,14 +123,11 @@ class ReportsCommands extends DrushCommands {
   #[CLI\Option(name: 'all', description: 'Generate every generated report, with its default configuration.')]
   #[CLI\Usage(name: 'drush reports:generate --all', description: 'Generates every generated report with its default options.')]
   public function generate(?string $id = NULL, array $options = ['config' => [], 'all' => FALSE]): void {
-    if (!$this->reportStorage->isAvailable()) {
-      throw new \RuntimeException(dt('Generated reports need the private file system, which is not configured.'));
-    }
     if ($options['all']) {
       if ($id !== NULL || $options['config']) {
         throw new \InvalidArgumentException(dt('--all generates every report with its default options, so leave out the report ID and --config.'));
       }
-      $reports = array_filter(array_map(fn ($id) => $this->reportManager->createInstance($id), array_keys($this->reportManager->getDefinitions())), fn ($report) => $report instanceof GeneratedReportInterface);
+      $reports = array_filter(array_map(fn ($id) => $this->reportManager->createInstance($id), array_keys($this->reportManager->getDefinitions())), fn ($report) => $report instanceof GeneratedReportInterface && $report->isApplicable());
     }
     elseif ($id === NULL) {
       throw new \InvalidArgumentException(dt('Give a report ID, or use --all.'));
@@ -135,6 +136,16 @@ class ReportsCommands extends DrushCommands {
       $reports = [$this->createReport($id, $options['config'])];
       if (!$reports[0] instanceof GeneratedReportInterface) {
         throw new \InvalidArgumentException(dt('The @id report is not a generated report.', ['@id' => $id]));
+      }
+    }
+    // Reports whose requirements aren't met are skipped with --all.
+    foreach ($reports as $key => $report) {
+      if ($errors = $this->getRequirementErrors($report)) {
+        if (!$options['all']) {
+          throw new \RuntimeException($errors);
+        }
+        $this->logger()->warning(dt('Skipping @report: @errors', ['@report' => $report->getPluginDefinition()['label'], '@errors' => $errors]));
+        unset($reports[$key]);
       }
     }
     // Each report is its own batch set, run one after another.
@@ -156,6 +167,22 @@ class ReportsCommands extends DrushCommands {
   #[CLI\Command(name: 'reports:clean')]
   public function clean(): void {
     $this->logger()->success(dt('Deleted @count generated report files.', ['@count' => $this->reportStorage->deleteExpired()]));
+  }
+
+  /**
+   * Describes a report's unmet requirements that prevent using it.
+   *
+   * @return string
+   *   The errors' titles and descriptions, or an empty string if it's usable.
+   */
+  protected function getRequirementErrors(ReportInterface $report): string {
+    $errors = [];
+    foreach ($this->reportManager->getRequirements($report) as $requirement) {
+      if ($requirement['severity'] === RequirementSeverity::Error) {
+        $errors[] = $requirement['title'] . ': ' . strip_tags((string) ($requirement['description'] ?? ''));
+      }
+    }
+    return implode(' ', $errors);
   }
 
   /**

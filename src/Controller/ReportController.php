@@ -9,6 +9,7 @@ use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DateFormatterInterface;
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Link;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Session\AccountInterface;
@@ -85,6 +86,14 @@ class ReportController extends ControllerBase {
         '#attached' => ['library' => ['reports/summary']],
         'summary' => $summary,
       ];
+    }
+
+    // Errors stop the report; warnings are shown with it.
+    if ($requirements = $this->reportManager->getRequirements($report)) {
+      $build['requirements'] = $this->buildRequirements($requirements);
+    }
+    if (!$this->reportManager->isUsable($report)) {
+      return $build;
     }
 
     if ($report instanceof PluginFormInterface) {
@@ -315,7 +324,7 @@ class ReportController extends ControllerBase {
       return AccessResult::forbidden();
     }
     $instance = $this->reportManager->createInstance($report);
-    return AccessResult::allowedIf($instance instanceof GeneratedReportInterface && $this->reportStorage->isAvailable())
+    return AccessResult::allowedIf($instance instanceof GeneratedReportInterface && $this->reportManager->isUsable($instance))
       ->andIf($instance->access($account));
   }
 
@@ -373,9 +382,6 @@ class ReportController extends ControllerBase {
    * Builds the status of a generated report, with a link to (re)generate it.
    */
   protected function buildGeneratedStatus(GeneratedReportInterface $report, array $query): array {
-    if (!$this->reportStorage->isAvailable()) {
-      return ['#markup' => $this->t('This report needs the private file system, which is not configured.'), '#prefix' => '<div class="messages messages--error">', '#suffix' => '</div>'];
-    }
     $status = $this->reportStorage->getStatus($report);
     $stale = $this->reportStorage->isStale($report) || $this->reportStorage->hasChanged($report);
     $build = [
@@ -400,6 +406,35 @@ class ReportController extends ControllerBase {
     $build['generate']['#attributes']['class'] = $stale || empty($status['completed']) ? ['button', 'button--primary'] : ['button'];
     // Reports with options have View and Regenerate buttons in their form.
     $build['generate']['#access'] = !$report instanceof PluginFormInterface && $this->generateAccess($this->currentUser(), $report->getPluginId())->isAllowed();
+    return $build;
+  }
+
+  /**
+   * Builds messages for a report's requirements that aren't met.
+   *
+   * @param array $requirements
+   *   Requirements, as from ReportManager::getRequirements().
+   *
+   * @return array
+   *   A message for each error and warning.
+   */
+  protected function buildRequirements(array $requirements): array {
+    $build = [];
+    foreach ($requirements as $key => $requirement) {
+      $type = match ($requirement['severity']) {
+        RequirementSeverity::Error => 'error',
+        RequirementSeverity::Warning => 'warning',
+        default => NULL,
+      };
+      if ($type) {
+        $build[$key] = [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['messages', "messages--$type"]],
+          'title' => ['#markup' => $requirement['title'], '#prefix' => '<strong>', '#suffix' => ':</strong> '],
+          'description' => is_array($requirement['description'] ?? NULL) ? $requirement['description'] : ['#markup' => $requirement['description'] ?? ''],
+        ];
+      }
+    }
     return $build;
   }
 

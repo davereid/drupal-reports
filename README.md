@@ -11,7 +11,7 @@ Submit bug reports and feature suggestions, or track changes, in the [issue queu
 
 - [Helper](https://www.drupal.org/project/helper)
 - [OpenSpout](https://github.com/openspout/openspout), installed by Composer.
-- The private file system, for generated reports.
+- The private file system, for generated reports (or another non-public directory, see Configuration). Realtime reports work without it. The status report warns when generated reports can't be stored.
 
 
 ## Installation
@@ -23,6 +23,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 - Reports are listed at _Reports_ » _Reports_ (`/admin/reports/reports`). By default, they need the _View site reports_ permission; each report can require a different one.
 - Set when generated reports are out of date at _Configuration_ » _System_ » _Reports_ (`/admin/config/system/reports`).
+- Generated reports are stored in `private://reports`. To use another directory, such as a private S3 bucket, set `$settings['reports_directory'] = 's3private://reports';` in `settings.php`. It must be writable. `public://` works but the status report warns about it, since anyone with a file's URL could download reports, which can contain unpublished content and site details. `temporary://` also works with a warning, since it can be cleared at any time and isn't shared between web servers.
 - Generated report files are deleted on cron once they're older than _Delete generated reports after_ (30 days by default), and generated again when next viewed. `drush reports:clean` does the same on demand.
 - Generated reports process `$settings['reports_batch_size']` items per batch pass, set in `settings.php`. It defaults to core's `$settings['entity_update_batch_size']` (50).
 
@@ -60,5 +61,7 @@ Options and cache tags:
 
 - Reports take options through `defaultConfiguration()`, and implement `PluginFormInterface` to show a form above the report. Generated reports are stored separately for each configuration.
 - `getSummary()` returns a render array describing what the report checks (not its current options); by default, the report's description, e.g. the entity types, bundles and fields it scans. It's shown on the report page.
+- `isApplicable()` returns FALSE when the report doesn't apply to the site, e.g. an optional module it reports on isn't installed: it then has no menu link under Reports.
+- `getRequirements()` returns requirements in `hook_runtime_requirements()`'s format, e.g. a warning when there's nothing to report on. Errors prevent viewing and generating the report; warnings are shown with it. Storage for generated reports is checked for you, and is the only requirement on the status report.
 - `getOperations()` adds buttons to the report page, next to the downloads (links the user can't access are hidden).
 - `getCacheTags()` lists the data a report is built from. Prefer list tags, such as bundle list tags (`node_list:article`), to tags of individual entities.

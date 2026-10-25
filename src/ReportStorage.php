@@ -12,8 +12,14 @@ use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreInterface;
+use Drupal\Core\PrivateKey;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Site\Settings;
+use Drupal\Core\StreamWrapper\StreamWrapperInterface;
+use Drupal\Core\StreamWrapper\StreamWrapperManager;
 use Drupal\Core\StreamWrapper\StreamWrapperManagerInterface;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\reports\Plugin\Report\RealtimeReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use OpenSpout\Common\Entity\Row;
@@ -22,7 +28,8 @@ use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 /**
  * Stores generated reports and their status.
  *
- * Each report configuration has its files in private://reports, named after
+ * Each report configuration has its files in the reports directory (see
+ * getDirectory()), named after
  * its key: '<key>.csv' for the default sheet, '<key>.<sheet>.csv' for other
  * sheets and '<key>.xlsx' for a spreadsheet of all sheets, and a status in the 'reports' key/value collection:
  * - status: 'generating', 'complete' or 'failed'.
@@ -34,10 +41,14 @@ use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
  */
 class ReportStorage {
 
+  use StringTranslationTrait;
+
   /**
-   * The base directory of generated reports.
+   * The default directory of generated reports.
+   *
+   * Sites can use another with $settings['reports_directory'].
    */
-  const DIRECTORY = 'private://reports';
+  const DEFAULT_DIRECTORY = 'private://reports';
 
   public function __construct(
     protected readonly FileSystemInterface $fileSystem,
@@ -47,13 +58,63 @@ class ReportStorage {
     protected readonly StreamWrapperManagerInterface $streamWrapperManager,
     protected readonly AccountInterface $currentUser,
     protected readonly CacheTagsChecksumInterface $checksum,
+    protected readonly PrivateKey $privateKey,
   ) {}
 
   /**
-   * Checks whether the private file system is available.
+   * Gets the directory of generated reports.
+   *
+   * @return string
+   *   $settings['reports_directory'] from settings.php, or 'private://reports'.
+   */
+  public function getDirectory(): string {
+    return rtrim((string) Settings::get('reports_directory', static::DEFAULT_DIRECTORY), '/');
+  }
+
+  /**
+   * Checks whether generated reports can be stored.
    */
   public function isAvailable(): bool {
-    return $this->streamWrapperManager->isValidScheme('private');
+    return $this->getUnavailableReason() === NULL;
+  }
+
+  /**
+   * Explains why generated reports can't be stored.
+   *
+   * The directory's stream wrapper must be registered and writable. A public
+   * directory can be used, but ReportManager::getRequirements() warns about
+   * it.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup|null
+   *   The reason, or NULL if they can be stored.
+   */
+  public function getUnavailableReason(): ?TranslatableMarkup {
+    $directory = $this->getDirectory();
+    $scheme = StreamWrapperManager::getScheme($directory);
+    if (!$scheme || !isset($this->streamWrapperManager->getWrappers(StreamWrapperInterface::WRITE)[$scheme])) {
+      return $scheme === 'private'
+        ? $this->t('Generated reports need the private file system. Set $settings[\'file_private_path\'] in settings.php, or $settings[\'reports_directory\'] to another private directory.')
+        : $this->t('The directory for generated reports (%directory) is not writable: its stream wrapper is missing or read-only. Check $settings[\'reports_directory\'] in settings.php.', ['%directory' => $directory]);
+    }
+    return NULL;
+  }
+
+  /**
+   * Checks whether generated reports are stored in the public file system.
+   *
+   * Anyone who has a file's URL can download it there.
+   */
+  public function isPublic(): bool {
+    return StreamWrapperManager::getScheme($this->getDirectory()) === 'public';
+  }
+
+  /**
+   * Checks whether generated reports are stored in the temporary directory.
+   *
+   * It can be cleared at any time, and is separate on each web server.
+   */
+  public function isTemporary(): bool {
+    return StreamWrapperManager::getScheme($this->getDirectory()) === 'temporary';
   }
 
   /**
@@ -63,18 +124,15 @@ class ReportStorage {
    *   The report.
    *
    * @return string
-   *   The key, also used in file names: the plugin ID, followed by a hash of
-   *   the configuration for reports that have options. The hash is added even
-   *   for the default options, which can depend on the environment (e.g. the
-   *   current host is different in Drush).
+   *   The key, also used in file names: the plugin ID, followed by a keyed
+   *   hash (HMAC) of the plugin ID and configuration, using the site's hash
+   *   salt and private key. File names can't be guessed without them, which
+   *   matters when reports are stored in a public directory.
    */
   public function getKey(ReportInterface $report): string {
     // Derivative IDs contain ':', which some file systems don't allow.
-    $key = str_replace(':', '--', $report->getPluginId());
-    if ($configuration = $report->getConfiguration()) {
-      $key .= '--' . static::hashArray($configuration);
-    }
-    return $key;
+    $data = ['id' => $report->getPluginId(), 'configuration' => $report->getConfiguration()];
+    return str_replace(':', '--', $report->getPluginId()) . '--' . Crypt::hmacBase64(static::encodeArray($data), $this->privateKey->get() . Settings::getHashSalt());
   }
 
   /**
@@ -84,7 +142,7 @@ class ReportStorage {
    * final names when generation completes.
    */
   public function getTemporaryDirectory(ReportInterface $report): string {
-    return static::DIRECTORY . '/' . $this->getKey($report) . '.tmp';
+    return $this->getDirectory() . '/' . $this->getKey($report) . '.tmp';
   }
 
   /**
@@ -101,7 +159,7 @@ class ReportStorage {
    *   sheets, and '<key>.xlsx' for the spreadsheet. Keys never contain a dot.
    */
   protected function getFileUri(ReportInterface $report, string $name): string {
-    $base = static::DIRECTORY . '/' . $this->getKey($report);
+    $base = $this->getDirectory() . '/' . $this->getKey($report);
     return match ($name) {
       'default.csv' => "$base.csv",
       'report.xlsx' => "$base.xlsx",
@@ -361,7 +419,7 @@ class ReportStorage {
       // files into place.
       $key = $this->getKey($report);
       foreach (['csv', 'xlsx'] as $extension) {
-        foreach ($this->fileSystem->scanDirectory(static::DIRECTORY, '/^' . preg_quote($key, '/') . '(\.[^.]+)?\.' . $extension . '$/', ['recurse' => FALSE]) as $file) {
+        foreach ($this->fileSystem->scanDirectory($this->getDirectory(), '/^' . preg_quote($key, '/') . '(\.[^.]+)?\.' . $extension . '$/', ['recurse' => FALSE]) as $file) {
           $this->fileSystem->delete($file->uri);
         }
       }
@@ -390,7 +448,7 @@ class ReportStorage {
    *   The number of files and directories deleted.
    */
   public function deleteExpired(): int {
-    if (!$this->isAvailable() || !is_dir(static::DIRECTORY)) {
+    if (!$this->isAvailable() || !is_dir($this->getDirectory())) {
       return 0;
     }
     $now = $this->time->getCurrentTime();
@@ -398,7 +456,7 @@ class ReportStorage {
     $statuses = $this->keyValue()->getAll();
     $deleted = 0;
     $keys_with_files = [];
-    foreach ($this->fileSystem->scanDirectory(static::DIRECTORY, '/.*/', ['recurse' => FALSE]) as $file) {
+    foreach ($this->fileSystem->scanDirectory($this->getDirectory(), '/.*/', ['recurse' => FALSE]) as $file) {
       // Keys never contain a dot, so the key is the name up to the first dot.
       $key = strstr($file->filename, '.', TRUE) ?: $file->filename;
       $status = $statuses[$key] ?? NULL;
@@ -434,16 +492,18 @@ class ReportStorage {
    * Deletes all generated reports and their status.
    */
   public function deleteAll(): void {
-    $this->fileSystem->deleteRecursive(static::DIRECTORY);
+    if ($this->isAvailable()) {
+      $this->fileSystem->deleteRecursive($this->getDirectory());
+    }
     $this->keyValue()->deleteAll();
   }
 
   /**
-   * Hashes an array, ignoring the order of its keys.
+   * Encodes an array as JSON, ignoring the order of its keys.
    *
-   * @todo Use \Drupal\helper\ArrayHelper::hash() once Helper has it.
+   * @todo Use a Helper method once Helper has one (see ArrayHelper::hash()).
    */
-  protected static function hashArray(array $array): string {
+  protected static function encodeArray(array $array): string {
     $sort = function (array &$array) use (&$sort): void {
       ksort($array);
       foreach ($array as &$value) {
@@ -453,7 +513,7 @@ class ReportStorage {
       }
     };
     $sort($array);
-    return Crypt::hashBase64(json_encode($array, JSON_THROW_ON_ERROR));
+    return json_encode($array, JSON_THROW_ON_ERROR);
   }
 
   /**

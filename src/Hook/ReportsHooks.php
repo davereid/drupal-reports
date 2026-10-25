@@ -6,6 +6,7 @@ namespace Drupal\reports\Hook;
 
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\reports\ReportManager;
 use Drupal\reports\ReportStorage;
 
 /**
@@ -16,7 +17,19 @@ class ReportsHooks {
   public function __construct(
     protected readonly ReportStorage $reportStorage,
     protected readonly ModuleHandlerInterface $moduleHandler,
+    protected readonly ReportManager $reportManager,
   ) {}
+
+  /**
+   * Implements hook_runtime_requirements().
+   *
+   * Only the module's own requirements, such as storage for generated
+   * reports. Each report's requirements are shown on its page.
+   */
+  #[Hook('runtime_requirements')]
+  public function runtimeRequirements(): array {
+    return $this->reportManager->getGlobalRequirements();
+  }
 
   /**
    * Implements hook_cron().

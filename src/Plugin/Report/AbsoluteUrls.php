@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Entity\Query\QueryInterface;
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\Field\FieldTypePluginManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -167,6 +168,24 @@ class AbsoluteUrls extends EntityReportBase implements GeneratedReportInterface,
       'link_url' => $this->t('Link URL'),
     ]);
     return $header;
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * Warns when there are no link, text or custom fields to check.
+   */
+  public function getRequirements(): array {
+    if ($this->getFieldColumns()) {
+      return [];
+    }
+    return [
+      'fields' => [
+        'title' => $this->t('Fields to check'),
+        'description' => $this->t('There are no link, formatted text or custom fields with link, URI or formatted text subfields, so this report would always be empty.'),
+        'severity' => RequirementSeverity::Warning,
+      ],
+    ];
   }
 
   /**
