@@ -1,6 +1,0 @@
-# Local only, not committed. Loads the extensions that drupal.org CI loads
-# through phpstan/extension-installer, which md-cms doesn't use.
-includes:
-  - phpstan.neon
-  - ../../../../vendor/mglaman/phpstan-drupal/extension.neon
-  - ../../../../vendor/phpstan/phpstan-deprecation-rules/rules.neon
