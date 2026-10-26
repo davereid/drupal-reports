@@ -224,9 +224,10 @@ class GeneratedReportTest extends KernelTestBase {
       $report = $this->container->get(ReportManager::class)->createInstance('html_elements', $configuration);
       $this->assertSame(RequirementSeverity::Error, $report->getRequirements()['selector']['severity'] ?? NULL, $selector);
     }
-    // A missing selector isn't, so the options form is shown first.
+    // So is a missing one. The report page only shows it once options are
+    // submitted.
     $report = $this->container->get(ReportManager::class)->createInstance('html_elements');
-    $this->assertArrayNotHasKey('selector', $report->getRequirements());
+    $this->assertSame(RequirementSeverity::Error, $report->getRequirements()['selector']['severity'] ?? NULL);
   }
 
   /**
@@ -464,6 +465,11 @@ class GeneratedReportTest extends KernelTestBase {
     // An unknown field is an error.
     $manager = $this->container->get(ReportManager::class);
     $this->assertFalse($manager->isUsable($manager->createInstance('duplicate_values', ['field' => 'entity_test.missing'])));
+    // There's no default field: one must be chosen.
+    $report = $manager->createInstance('duplicate_values');
+    $this->assertSame('', $report->getConfiguration()['field']);
+    $this->assertFalse($manager->isUsable($report));
+    $this->assertSame('Choose a field to check.', (string) $report->getRequirements()['field']['description']);
   }
 
   /**

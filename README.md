@@ -43,8 +43,8 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Drush commands
 
-- `drush reports:list`: lists the reports and when they were generated.
-- `drush reports:run <id> [--config=key=value] [--sheet=<sheet>] [--generate]`: outputs a report. Asks to regenerate a generated report that's missing or out of date, unless `--generate` is given. For download-only reports, such as Site audit, it gives the download URL instead of the rows (set `--uri` so the URL uses the site's address).
+- `drush reports:list` (alias `drush reports`): lists the reports and when they were generated.
+- `drush reports:run <id> [--config=key=value] [--sheet=<sheet>] [--generate]` (alias `drush report <id>`): outputs a report. Without an ID, it asks which report to run. Asks to regenerate a generated report that's missing or out of date, unless `--generate` is given. For download-only reports, such as Site audit, it gives the download URL instead of the rows (set `--uri` so the URL uses the site's address).
 - `drush reports:generate <id> [--config=key=value]`: generates a report. `drush reports:generate --all` generates every generated report with its default options.
 - `drush reports:clean`: deletes generated report files older than _Delete generated reports after_, and unfinished ones, as cron does.
 

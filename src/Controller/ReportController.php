@@ -100,12 +100,15 @@ class ReportController extends ControllerBase {
     // is still shown for the report's own errors, which the options may
     // cause, but not for site-level errors such as missing storage, which no
     // option fixes.
+    // Before options are chosen ('config' isn't in the query string yet),
+    // the report's own errors, e.g. a required option that's empty, aren't
+    // shown: the form asks for the options instead.
     $requirements = $this->reportManager->getRequirements($report);
-    $this->addRequirementMessages($requirements);
-    $site_errors = array_filter(
-      array_diff_key($requirements, $report->getRequirements()),
-      fn ($requirement) => $requirement['severity'] === RequirementSeverity::Error,
-    );
+    $is_error = fn ($requirement) => $requirement['severity'] === RequirementSeverity::Error;
+    $own_errors = array_filter($report->getRequirements(), $is_error);
+    $site_errors = array_filter(array_diff_key($requirements, $own_errors), $is_error);
+    $shown = $report instanceof PluginFormInterface && !$request->query->has('config') ? array_diff_key($requirements, $own_errors) : $requirements;
+    $this->addRequirementMessages($shown);
     if ($report instanceof PluginFormInterface && !$site_errors) {
       $build['config'] = $this->formBuilder()->getForm(ReportConfigForm::class, $report, $sheet);
     }

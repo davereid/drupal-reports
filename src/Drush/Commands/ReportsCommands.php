@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\reports\Drush\Commands;
 
+use Consolidation\AnnotatedCommand\Hooks\HookManager;
+use Consolidation\OutputFormatters\Options\FormatterOptions;
 use Consolidation\OutputFormatters\StructuredData\RowsOfFields;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\reports\Exception\ReportGeneratingException;
@@ -16,6 +18,7 @@ use Drupal\reports\ReportWriter;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
 use Drush\Commands\DrushCommands;
+use Symfony\Component\Console\Input\InputInterface;
 
 /**
  * Drush commands for reports.
@@ -35,7 +38,7 @@ class ReportsCommands extends DrushCommands {
   /**
    * Lists the available reports.
    */
-  #[CLI\Command(name: 'reports:list')]
+  #[CLI\Command(name: 'reports:list', aliases: ['reports'])]
   #[CLI\FieldLabels(labels: ['id' => 'ID', 'label' => 'Label', 'type' => 'Type', 'status' => 'Status'])]
   public function list(array $options = ['format' => 'table']): RowsOfFields {
     $rows = [];
@@ -72,20 +75,39 @@ class ReportsCommands extends DrushCommands {
   }
 
   /**
+   * Asks which report to run when no report ID is given.
+   */
+  #[CLI\Hook(type: HookManager::INTERACT, target: 'reports:run')]
+  public function interactRun(InputInterface $input): void {
+    if ($input->getArgument('id')) {
+      return;
+    }
+    $options = [];
+    foreach ($this->reportManager->getDefinitions() as $id => $definition) {
+      if ($this->reportManager->isApplicable($id)) {
+        $options[$id] = (string) $definition['label'];
+      }
+    }
+    natcasesort($options);
+    $input->setArgument('id', (string) $this->io()->select(dt('Which report?'), $options, scroll: 15));
+  }
+
+  /**
    * Outputs a report.
    *
    * Generated reports are read from their stored file. If it's missing, out
    * of date or failed, you're asked whether to regenerate it. Download-only
    * reports aren't output: the command gives their download URL instead.
    */
-  #[CLI\Command(name: 'reports:run')]
-  #[CLI\Argument(name: 'id', description: 'The report ID.')]
+  #[CLI\Command(name: 'reports:run', aliases: ['report'])]
+  #[CLI\Argument(name: 'id', description: 'The report ID. Leave it out to choose from a list.')]
   #[CLI\Option(name: 'config', description: 'Report configuration as key=value. Repeat for several keys; separate list values with commas.')]
   #[CLI\Option(name: 'sheet', description: 'The sheet to output, for reports with several sheets.')]
   #[CLI\Option(name: 'generate', description: 'Regenerate a generated report first.')]
+  #[CLI\Usage(name: 'drush report content_counts', description: 'Outputs the Content counts report, using the command\'s alias.')]
   #[CLI\Usage(name: 'drush reports:run absolute_urls --config=domains=example.com --format=csv', description: 'Outputs the absolute URLs to example.com as CSV.')]
   public function run(
-    string $id,
+    ?string $id = NULL,
     array $options = [
       'config' => [],
       'sheet' => ReportInterface::SHEET_DEFAULT,
@@ -93,6 +115,9 @@ class ReportsCommands extends DrushCommands {
       'format' => 'table',
     ],
   ): ?RowsOfFields {
+    if ($id === NULL) {
+      throw new \InvalidArgumentException(dt('Give a report ID. drush reports:list lists them.'));
+    }
     $report = $this->createReport($id, $options['config']);
     $download_only = !empty($report->getPluginDefinition()['downloadOnly']);
     $sheets = $report->getSheets();
@@ -139,8 +164,24 @@ class ReportsCommands extends DrushCommands {
     foreach ($this->reportStorage->getRows($report, $options['sheet']) as $row) {
       $rows[] = array_combine(array_keys($header), ReportWriter::normalizeRow($header, $row));
     }
-    // Columns are labeled with their keys, which --fields also uses.
-    return new RowsOfFields($rows);
+    // The column labels, keyed by column key; --fields takes either. They're
+    // the result's default field labels, so a report without rows still
+    // prints its header.
+    $labels = array_map('strval', ReportWriter::getLabels($header));
+    return new class ($rows, $labels) extends RowsOfFields {
+
+      public function __construct(array $data, protected array $fieldLabels) {
+        parent::__construct($data);
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      protected function defaultOptions() {
+        return [FormatterOptions::FIELD_LABELS => $this->fieldLabels] + parent::defaultOptions();
+      }
+
+    };
   }
 
   /**

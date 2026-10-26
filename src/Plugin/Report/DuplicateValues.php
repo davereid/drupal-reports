@@ -62,9 +62,8 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    $options = isset($this->entityFieldManager) ? $this->getFieldOptions() : [];
-    $default = isset($options['node.title']) ? 'node.title' : (string) array_key_first($options);
-    return parent::defaultConfiguration() + ['field' => $default];
+    // No default: people choose the field to check.
+    return parent::defaultConfiguration() + ['field' => ''];
   }
 
   /**
@@ -83,6 +82,7 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
       '#type' => 'select',
       '#title' => $this->t('Field'),
       '#options' => $this->getFieldOptions(),
+      '#empty_option' => $this->t('- Select a field -'),
       '#default_value' => $this->configuration['field'],
       '#required' => TRUE,
     ];
@@ -113,7 +113,9 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
     return [
       'field' => [
         'title' => $this->t('Field'),
-        'description' => $this->t('The field %field does not exist or cannot be checked. Choose another one in the options.', ['%field' => $this->configuration['field']]),
+        'description' => $this->configuration['field'] === ''
+          ? $this->t('Choose a field to check.')
+          : $this->t('The field %field does not exist or cannot be checked. Choose another one in the options.', ['%field' => $this->configuration['field']]),
         'severity' => RequirementSeverity::Error,
       ],
     ];
