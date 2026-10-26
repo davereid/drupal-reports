@@ -185,7 +185,7 @@ class FieldList extends ReportBase implements RealtimeReportInterface {
       $row = [
         'id' => $storage->isLocked() ? (string) $this->t('@field_name (Locked)', ['@field_name' => $storage->getName()]) : $storage->getName(),
         'entity_type' => $storage->getTargetEntityTypeId(),
-        'usage' => implode(', ', $this->getBundleLabels($storage)),
+        'usage' => $this->getBundleLabels($storage),
       ];
       if ($sheet === self::SHEET_PERMISSIONS) {
         yield $row + ['type' => $storage->getType(), 'permissions' => $this->getPermissionType($storage)];
@@ -198,7 +198,7 @@ class FieldList extends ReportBase implements RealtimeReportInterface {
       ]) : $storage->getType();
       yield $row + [
         'type' => (string) $type_label,
-        'settings_summary' => implode('; ', array_map('strval', $this->fieldTypeManager->getStorageSettingsSummary($storage))),
+        'settings_summary' => array_map('strval', $this->fieldTypeManager->getStorageSettingsSummary($storage)),
       ];
     }
   }
@@ -260,7 +260,7 @@ class FieldList extends ReportBase implements RealtimeReportInterface {
     }
     ksort($fields);
     foreach ($fields as $field_name => $views) {
-      yield ['id' => $field_name, 'views' => implode(', ', $views)];
+      yield ['id' => $field_name, 'views' => array_values($views)];
     }
   }
 

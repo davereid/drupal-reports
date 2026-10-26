@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\reports\Controller;
 
+use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
@@ -363,10 +364,16 @@ class ReportController extends ControllerBase {
       return Link::fromTextAndUrl(ReportWriter::normalizeCell($cell), $url)->toRenderable();
     }
     return match (TRUE) {
+      is_array($cell) => [
+        '#theme' => 'item_list',
+        '#items' => array_map(fn ($item) => $this->buildCell($item), array_values($cell)),
+      ],
       $cell instanceof Link => $cell->toRenderable(),
       $cell instanceof Url => Link::fromTextAndUrl($cell->setAbsolute()->toString(), $cell)->toRenderable(),
       // Generated reports only have strings, so link absolute URLs.
       is_string($cell) && preg_match('#^https?://#', $cell) && UrlHelper::isValid($cell, TRUE) => Link::fromTextAndUrl($cell, Url::fromUri($cell))->toRenderable(),
+      // Generated reports store lists one item per line.
+      is_string($cell) && str_contains($cell, "\n") => ['#markup' => nl2br(Html::escape($cell))],
       default => ['#plain_text' => ReportWriter::normalizeCell($cell)],
     };
   }

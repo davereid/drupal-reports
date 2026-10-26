@@ -328,9 +328,9 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'format' => $id,
         'name' => $format->label(),
         'status' => $format->status() ? $this->t('Yes') : $this->t('No'),
-        'roles' => implode(', ', array_map(fn (RoleInterface $role) => $role->label(), $format_roles)),
+        'roles' => array_values(array_map(fn (RoleInterface $role) => $role->label(), $format_roles)),
         'editor' => isset($editors[$id]) ? $editors[$id]->getEditor() : '',
-        'filters' => implode(', ', $filters),
+        'filters' => array_values($filters),
         'allowed_html' => $format->filters()->has('filter_html') && !empty($format->filters('filter_html')->getConfiguration()['status']) ? $format->filters('filter_html')->getConfiguration()['settings']['allowed_html'] ?? '' : '',
       ], 'text_formats');
     }
@@ -444,8 +444,8 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'label' => $info['label'],
         'name' => $bundle,
         'description' => $bundle_entity instanceof EntityDescriptionInterface ? $bundle_entity->getDescription() : '',
-        'menus' => implode(', ', array_map(fn ($menu) => isset($menus[$menu]) ? $menus[$menu]->label() : $menu, $available_menus)),
-        'url_pattern' => implode('; ', $this->getUrlPatterns($entity_type_id, (string) $bundle)),
+        'menus' => array_values(array_map(fn ($menu) => isset($menus[$menu]) ? $menus[$menu]->label() : $menu, $available_menus)),
+        'url_pattern' => $this->getUrlPatterns($entity_type_id, (string) $bundle),
       ] + $this->getBundleSettings($entity_type_id, (string) $bundle, $bundle_entity), "$entity_type_id--bundles");
     }
     $context['message'] = $this->t('Checking @label.', ['@label' => $this->getBundleListLabel($entity_type_id)]);
@@ -564,7 +564,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'label' => $field->getLabel() . ': ' . ($settings['label'] ?? $name),
         'name' => $field->getName() . '.' . $name,
         'type' => $this->getPluginLabel($this->customFieldTypeManager, $column['type']),
-        'values' => implode('; ', $values),
+        'values' => array_values($values),
         'required' => !empty($settings['required']) ? $this->t('Yes') : $this->t('No'),
         'widget' => $widget_settings ? $this->getPluginLabel($this->customFieldWidgetManager, $widget_settings['type'] ?? '') : $this->t('Hidden'),
         'formatter' => $formatter_type ? $this->getPluginLabel($this->customFieldFormatterManager, $formatter_type) : $this->t('Hidden'),
@@ -588,16 +588,15 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    * @param \Drupal\Core\Field\FieldDefinitionInterface $field
    *   The field.
    *
-   * @return string
-   *   Allowed values of list fields ('key: label', separated by semicolons),
-   *   the target type and bundles of references, the allowed extensions of
-   *   files and images, or the minimum and maximum of numbers. Empty for
-   *   other fields.
+   * @return string|string[]
+   *   Allowed values of list fields, as a list of 'key: label', the target
+   *   type and bundles of references, the allowed extensions of files and
+   *   images, or the minimum and maximum of numbers. Empty for other fields.
    */
-  protected function getAllowedValues(FieldDefinitionInterface $field): string {
+  protected function getAllowedValues(FieldDefinitionInterface $field): string|array {
     $settings = $field->getSettings();
     if (isset($settings['allowed_values']) && is_array($settings['allowed_values'])) {
-      return implode('; ', array_map(fn ($key, $label) => "$key: $label", array_keys($settings['allowed_values']), $settings['allowed_values']));
+      return array_map(fn ($key, $label) => "$key: $label", array_keys($settings['allowed_values']), $settings['allowed_values']);
     }
     if (isset($settings['target_type'])) {
       $target_type = $this->entityTypeManager->getDefinition($settings['target_type'], FALSE);

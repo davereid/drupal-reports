@@ -218,7 +218,7 @@ class ReportsTest extends KernelTestBase {
     // The field type's label changed between core versions.
     $label = $this->container->get('plugin.manager.field.field_type')->getDefinition('text')['label'];
     $this->assertSame("$label (module: text)", $row['type']);
-    $this->assertSame('Entity Test Bundle', $row['usage']);
+    $this->assertSame(['Entity Test Bundle'], $row['usage']);
   }
 
   /**
@@ -287,6 +287,12 @@ class ReportsTest extends KernelTestBase {
     $this->assertNotInstanceOf(FormulaCell::class, $cells[2]);
     $this->assertSame($long, $cells[2]->getValue());
     $this->assertSame('Plain', $cells[3]->getValue());
+    $this->assertNull($cells[3]->style);
+
+    // Lists, one item per line, wrap so Excel shows each line.
+    $cells = ReportWriter::toSpreadsheetRow($header, ['', '', '', ReportWriter::normalizeCell(['One', 'Two'])])->cells;
+    $this->assertSame("One\nTwo", $cells[3]->getValue());
+    $this->assertTrue($cells[3]->style?->shouldWrapText);
   }
 
 }

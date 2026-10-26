@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\reports;
 
-use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\Component\Render\MarkupInterface;
 use Drupal\Component\Render\PlainTextOutput;
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use Drupal\reports\Plugin\Report\ReportInterface;
 use OpenSpout\Common\Entity\Cell;
 use OpenSpout\Common\Entity\Cell\FormulaCell;
 use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
 
 /**
  * Appends rows to a generated report's sheet files.
@@ -163,7 +164,9 @@ class ReportWriter {
       $text = (string) $row[$key];
       $url = is_array($column) && isset($column['url']) ? (string) ($row[$column['url']] ?? '') : $text;
       if ($text === '' || !preg_match('#^https?://#', $url) || strlen($url) > 255 || !UrlHelper::isValid($url, TRUE)) {
-        $cells[] = Cell::fromValue($text);
+        // Lists (array cells) have one item per line, which Excel only shows
+        // in cells that wrap their text.
+        $cells[] = Cell::fromValue($text, str_contains($text, "\n") ? (new Style())->withShouldWrapText(TRUE) : NULL);
         continue;
       }
       $quote = fn (string $value) => '"' . str_replace('"', '""', $value) . '"';
@@ -177,6 +180,7 @@ class ReportWriter {
    *
    * URLs become absolute URLs. Links keep only their text: use a separate
    * \Drupal\Core\Url column when the URL is needed in files and Drush output.
+   * Lists (arrays) become one item per line.
    *
    * @param mixed $cell
    *   The cell.
@@ -187,6 +191,7 @@ class ReportWriter {
   public static function normalizeCell(mixed $cell): string {
     return match (TRUE) {
       $cell === NULL => '',
+      is_array($cell) => implode("\n", array_map(static::normalizeCell(...), $cell)),
       is_bool($cell) => $cell ? '1' : '0',
       $cell instanceof Url => $cell->setAbsolute()->toString(),
       $cell instanceof Link => PlainTextOutput::renderFromHtml((string) $cell->getText()),
