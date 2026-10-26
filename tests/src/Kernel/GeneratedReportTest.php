@@ -607,6 +607,7 @@ class GeneratedReportTest extends KernelTestBase {
     $this->assertSame((string) $entity_type_manager->getDefinition('user')->getCollectionLabel(), (string) $report->getSheets()['user__user']);
     $sheets = $manager->createInstance('site_audit', ['entity_types' => 'entity_test'])->getSheets();
     $this->assertSame('Entity Test Bundle', (string) $sheets['entity_test__entity_test']);
+    assert($report instanceof GeneratedReportInterface);
     $this->assertNotContains('processBundleList', array_column($report->getBatchOperations(), 0));
   }
 
