@@ -5,7 +5,8 @@
     "license": "GPL-2.0-or-later",
     "require": {
         "drupal/helper": "^2.1",
-        "openspout/openspout": "^5.3"
+        "openspout/openspout": "^5.3",
+        "symfony/css-selector": "^7.3 || ^8.0"
     },
     "require-dev": {
         "drupal/custom_field": "*",

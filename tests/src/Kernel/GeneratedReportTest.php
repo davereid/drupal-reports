@@ -163,6 +163,59 @@ class GeneratedReportTest extends KernelTestBase {
   }
 
   /**
+   * Tests the HTML elements report.
+   */
+  public function testHtmlElements(): void {
+    FilterFormat::create(['format' => 'html', 'name' => 'HTML'])->save();
+    foreach (['field_link' => 'link', 'field_text' => 'text_long'] as $name => $type) {
+      FieldStorageConfig::create(['field_name' => $name, 'entity_type' => 'entity_test', 'type' => $type])->save();
+      FieldConfig::create([
+        'field_name' => $name,
+        'entity_type' => 'entity_test',
+        'bundle' => 'entity_test',
+        'label' => $name,
+      ])->save();
+    }
+    EntityTest::create([
+      'name' => 'First',
+      'field_link' => ['uri' => 'https://example.com/blockquote', 'title' => 'blockquote'],
+      'field_text' => [
+        'value' => '<blockquote>Quote</blockquote><p><a href="/a" target="_blank">New</a> <a href="/b">Same</a></p>',
+        'format' => 'html',
+      ],
+    ])->save();
+
+    $cases = [
+      ['tag', 'BLOCKQUOTE', [['Quote', '<blockquote>Quote</blockquote>']]],
+      ['css', 'a[target="_blank"]', [['New', '<a href="/a" target="_blank">New</a>']]],
+      ['xpath', '//a[@href="/b"]', [['Same', '<a href="/b">Same</a>']]],
+    ];
+    foreach ($cases as [$type, $selector, $expected]) {
+      $report = $this->generate('html_elements', [
+        'selector_type' => $type,
+        'selector' => $selector,
+        'text_source' => 'raw',
+      ]);
+      $rows = iterator_to_array($this->storage->getRows($report), FALSE);
+      $this->assertSame($expected, array_map(fn ($row) => [$row['element_text'], $row['element_html']], $rows), $selector);
+      $this->assertSame(['field_text'], array_unique(array_column($rows, 'field')));
+    }
+    // Link fields aren't checked.
+    $report = $this->container->get(ReportManager::class)->createInstance('html_elements', ['selector' => 'a']);
+    assert($report instanceof GeneratedReportInterface);
+    $fields = array_column(array_column($report->getBatchOperations(), 1), 1);
+    $this->assertContains('field_text', $fields);
+    $this->assertNotContains('field_link', $fields);
+
+    // Invalid or missing selectors are errors.
+    foreach ([['tag', 'a b'], ['css', 'a[['], ['xpath', '//a['], ['tag', '']] as [$type, $selector]) {
+      $configuration = ['selector_type' => $type, 'selector' => $selector];
+      $report = $this->container->get(ReportManager::class)->createInstance('html_elements', $configuration);
+      $this->assertSame(RequirementSeverity::Error, $report->getRequirements()['selector']['severity'] ?? NULL, $selector);
+    }
+  }
+
+  /**
    * Tests custom field Text (long) subfields in the Absolute URLs report.
    *
    * They're only checked on bundles where they're formatted, with the

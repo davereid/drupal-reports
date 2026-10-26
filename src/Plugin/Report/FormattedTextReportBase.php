@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Drupal\reports\Plugin\Report;
 
 use Drupal\Component\Plugin\PluginManagerInterface;
-use Drupal\Component\Utility\Html;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
@@ -14,28 +13,25 @@ use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Field\FieldTypePluginManagerInterface;
-use Drupal\Core\Field\Plugin\Field\FieldType\UriItem;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\custom_field\Plugin\Field\FieldType\CustomItem;
-use Drupal\file\Plugin\Field\FieldType\FileUriItem;
 use Drupal\helper\ArrayHelper;
-use Drupal\link\Plugin\Field\FieldType\LinkItem;
 use Drupal\reports\ReportWriter;
 use Drupal\text\Plugin\Field\FieldType\TextItemBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Base class for reports that check URLs and formatted text in content.
+ * Base class for reports that check formatted text in content.
  *
- * Checks link, URI and formatted text fields, including field types that
- * extend them, and custom field (custom_field module) link, URI and formatted
- * Text (long) subfields, in every content entity type, one batch operation
- * per field. Modules can check other field types and subfield types with
- * hook_reports_text_field_columns_alter() and
- * hook_reports_text_field_custom_columns_alter(). Subclasses list what they
- * find with getUrlRows() and getHtmlRows(), and can narrow the entity query
- * with alterFieldQuery().
+ * Checks formatted text fields, including field types that extend them, and
+ * custom field (custom_field module) formatted Text (long) subfields, in every
+ * content entity type, one batch operation per field. Modules can check other
+ * field types and subfield types with
+ * hook_reports_formatted_text_columns_alter() and
+ * hook_reports_formatted_text_custom_columns_alter(). Subclasses list what
+ * they find with getHtmlRows(), and can narrow the entity query with
+ * alterFieldQuery(). LinkReportBase also checks URLs.
  *
  * Adds the 'text_source' option: check formatted text as displayed
  * ('filtered', after text format filters) or as entered ('raw').
@@ -43,7 +39,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * @internal
  *   Experimental until more reports use it: it may still change.
  */
-abstract class TextFieldReportBase extends EntityReportBase implements GeneratedReportInterface {
+abstract class FormattedTextReportBase extends EntityReportBase implements GeneratedReportInterface {
 
   /**
    * The entity field manager.
@@ -105,7 +101,7 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    * @return array
    *   The form.
    */
-  protected function buildTextFieldConfigurationForm(array $form, FormStateInterface $form_state): array {
+  protected function buildFormattedTextConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form = $this->buildEntityConfigurationForm($form, $form_state);
     $form['text_source'] = [
       '#type' => 'radios',
@@ -126,21 +122,6 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    *   Columns, as for getHeader().
    */
   abstract protected function getValueHeader(): array;
-
-  /**
-   * Lists what the report finds in a URL value.
-   *
-   * @param string $url
-   *   The URL, from a link field or a link or URI subfield.
-   * @param string $title
-   *   The link text, if the field has one.
-   *
-   * @return iterable<array<string, mixed>>
-   *   Rows for the getValueHeader() columns. None by default.
-   */
-  protected function getUrlRows(string $url, string $title): iterable {
-    return [];
-  }
 
   /**
    * Lists what the report finds in formatted text.
@@ -327,24 +308,44 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    * Lists what the report finds in an entity's field.
    *
    * @return iterable<array<string, mixed>>
-   *   Rows from getUrlRows() and getHtmlRows().
+   *   Rows from getColumnRows().
    */
   protected function getFieldRows(FieldableEntityInterface $entity, string $field_name, array $field, bool $filtered): iterable {
     foreach ($entity->get($field_name) as $item) {
       foreach ($field['columns'] as $column => $info) {
         $value = (string) $item->{$column};
-        if ($value === '') {
-          continue;
-        }
-        if (!$info['text']) {
-          yield from $this->getUrlRows($value, $info['title'] ? (string) $item->{$info['title']} : '');
-          continue;
-        }
-        $format = $this->getTextFormat($entity, $field_name, $item, $column);
-        if ($format !== FALSE) {
-          yield from $this->getHtmlRows($filtered ? $this->filterText($value, $format, $entity->language()->getId()) : $value);
+        if ($value !== '') {
+          yield from $this->getColumnRows($entity, $field_name, $item, $column, $info, $value, $filtered);
         }
       }
+    }
+  }
+
+  /**
+   * Lists what the report finds in a field item's column.
+   *
+   * @param \Drupal\Core\Entity\FieldableEntityInterface $entity
+   *   The entity.
+   * @param string $field_name
+   *   The field name.
+   * @param \Drupal\Core\Field\FieldItemInterface $item
+   *   The field item.
+   * @param string $column
+   *   The column.
+   * @param array{text: bool, title: ?string} $info
+   *   The column, as in getFieldColumns().
+   * @param string $value
+   *   The column's value, not empty.
+   * @param bool $filtered
+   *   TRUE to check formatted text after text format filters.
+   *
+   * @return iterable<array<string, mixed>>
+   *   Rows from getHtmlRows() for formatted text columns.
+   */
+  protected function getColumnRows(FieldableEntityInterface $entity, string $field_name, FieldItemInterface $item, string $column, array $info, string $value, bool $filtered): iterable {
+    $format = $info['text'] ? $this->getTextFormat($entity, $field_name, $item, $column) : FALSE;
+    if ($format !== FALSE) {
+      yield from $this->getHtmlRows($filtered ? $this->filterText($value, $format, $entity->language()->getId()) : $value);
     }
   }
 
@@ -366,10 +367,12 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
         continue;
       }
       foreach ($entity_fields as $field_name => $info) {
-        $columns = $info['type'] === 'custom'
-          // custom_field's field type.
-          ? $this->getCustomFieldColumns($storage_definitions[$entity_type_id] ??= $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id), $field_name)
-          : $this->getFieldTypeColumns($info['type']);
+        $columns = $this->getDefaultFieldTypeColumns($info['type']);
+        // custom_field's field type.
+        if ($info['type'] === 'custom') {
+          $storage_definition = ($storage_definitions[$entity_type_id] ??= $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id))[$field_name] ?? NULL;
+          $columns = $storage_definition ? $this->getCustomFieldColumns($storage_definition) : [];
+        }
         if ($columns) {
           $fields[$entity_type_id][$field_name] = [
             'type' => $info['type'],
@@ -387,31 +390,20 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    * Gets the columns to check of a field type.
    *
    * Field types are matched by their item class, so field types that extend
-   * core's link, formatted text or URI field types are checked too. Modules
-   * can change the columns with hook_reports_text_field_columns_alter().
+   * core's formatted text field types are checked too. Modules can change the
+   * columns with hook_reports_formatted_text_columns_alter().
    *
    * @param string $type
    *   The field type ID.
    *
    * @return array<string, array{text: bool, title: ?string}>
-   *   The columns, as in getFieldColumns(), or an empty array to skip the
-   *   field type:
-   *   - Link fields (LinkItem): 'uri', with its link text in 'title'.
-   *   - Formatted text fields (TextItemBase): 'value'.
-   *   - URI fields (UriItem): 'value'. File URIs (FileUriItem), such as
-   *     public://file.pdf, aren't URLs to check.
+   *   The columns, as in getFieldColumns(): 'value' for formatted text fields
+   *   (TextItemBase), or an empty array.
    */
-  protected function getFieldTypeColumns(string $type): array {
+  protected function getDefaultFieldTypeColumns(string $type): array {
     $class = $this->fieldTypeManager->getDefinition($type, FALSE)['class'] ?? NULL;
-    $is_uri = $class && is_a($class, UriItem::class, TRUE) && !is_a($class, FileUriItem::class, TRUE);
-    $columns = match (TRUE) {
-      $class === NULL => [],
-      is_a($class, LinkItem::class, TRUE) => ['uri' => ['text' => FALSE, 'title' => 'title']],
-      is_a($class, TextItemBase::class, TRUE) => ['value' => ['text' => TRUE, 'title' => NULL]],
-      $is_uri => ['value' => ['text' => FALSE, 'title' => NULL]],
-      default => [],
-    };
-    $this->moduleHandler->alter('reports_text_field_columns', $columns, $type);
+    $columns = $class && is_a($class, TextItemBase::class, TRUE) ? ['value' => ['text' => TRUE, 'title' => NULL]] : [];
+    $this->moduleHandler->alter('reports_formatted_text_columns', $columns, $type);
     return $columns;
   }
 
@@ -461,36 +453,26 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
   /**
    * Gets the subfields of a custom field to check.
    *
-   * Link and URI subfields, and Text (long) subfields, which are only checked
-   * on bundles where they're formatted (see getTextFormat()). Modules can
-   * change the subfields with hook_reports_text_field_custom_columns_alter().
+   * Text (long) subfields, which are only checked on bundles where they're
+   * formatted (see getTextFormat()). Modules can change the subfields with
+   * hook_reports_formatted_text_custom_columns_alter().
    *
-   * @param \Drupal\Core\Field\FieldStorageDefinitionInterface[] $storage_definitions
-   *   The entity type's field storage definitions.
-   * @param string $field_name
-   *   The custom field's name.
+   * @param \Drupal\Core\Field\FieldStorageDefinitionInterface $storage_definition
+   *   The custom field's storage definition.
    *
    * @return array<string, array{text: bool, title: ?string, subfield_type: string}>
    *   The subfield columns, as in getFieldColumns().
    *
    * @todo Use a Helper method to find custom field subfields by type.
    */
-  protected function getCustomFieldColumns(array $storage_definitions, string $field_name): array {
-    $storage_definition = $storage_definitions[$field_name] ?? NULL;
-    if (!$storage_definition instanceof FieldStorageDefinitionInterface) {
-      return [];
-    }
+  protected function getCustomFieldColumns(FieldStorageDefinitionInterface $storage_definition): array {
     $columns = [];
     foreach ($storage_definition->getSetting('columns') ?? [] as $name => $column) {
-      $columns[$name] = match ($column['type']) {
-        'link' => ['text' => FALSE, 'title' => $name . '__title', 'subfield_type' => 'link'],
-        'uri' => ['text' => FALSE, 'title' => NULL, 'subfield_type' => 'uri'],
-        'string_long' => ['text' => TRUE, 'title' => NULL, 'subfield_type' => 'string_long'],
-        default => NULL,
-      };
+      if ($column['type'] === 'string_long') {
+        $columns[$name] = ['text' => TRUE, 'title' => NULL, 'subfield_type' => 'string_long'];
+      }
     }
-    $columns = array_filter($columns);
-    $this->moduleHandler->alter('reports_text_field_custom_columns', $columns, $storage_definition);
+    $this->moduleHandler->alter('reports_formatted_text_custom_columns', $columns, $storage_definition);
     return $columns;
   }
 
@@ -551,25 +533,6 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
       $element['#format'] = $format;
     }
     return (string) $this->renderer->renderInIsolation($element);
-  }
-
-  /**
-   * Gets the links in HTML.
-   *
-   * @return iterable<array{0: string, 1: string}>
-   *   The text and href of each <a> element.
-   *
-   * @todo Use a Helper method to get the links in HTML.
-   */
-  protected function getHtmlLinks(string $html): iterable {
-    if (!str_contains($html, '<a')) {
-      return;
-    }
-    foreach (Html::load($html)->getElementsByTagName('a') as $link) {
-      if ($link->hasAttribute('href')) {
-        yield [$link->textContent, $link->getAttribute('href')];
-      }
-    }
   }
 
 }

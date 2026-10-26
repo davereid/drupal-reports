@@ -22,7 +22,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Absolute URLs'),
   description: new TranslatableMarkup('Links in content that use absolute URLs to this site, which break when the domain or page path changes.'),
 )]
-class AbsoluteUrls extends TextFieldReportBase implements PluginFormInterface {
+class AbsoluteUrls extends LinkReportBase implements PluginFormInterface {
 
   /**
    * The current site's host name.
@@ -75,7 +75,7 @@ class AbsoluteUrls extends TextFieldReportBase implements PluginFormInterface {
       '#required' => TRUE,
       '#rows' => 3,
     ];
-    return $this->buildTextFieldConfigurationForm($form, $form_state);
+    return $this->buildFormattedTextConfigurationForm($form, $form_state);
   }
 
   /**
