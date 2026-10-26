@@ -278,7 +278,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       // A list of the entity type's bundles, before their sheets. Bundle
       // names can't contain '-', so this can't clash with a bundle sheet.
       if ($this->hasBundleList($entity_type_id)) {
-        $sheets["$entity_type_id--bundles"] ??= $this->t('@entity_type types', ['@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel()]);
+        $sheets["$entity_type_id--bundles"] ??= $this->getBundleListLabel($entity_type_id);
       }
       $sheets["{$entity_type_id}__{$bundle}"] = $label;
     }
@@ -455,7 +455,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'url_pattern' => implode('; ', $this->getUrlPatterns($entity_type_id, (string) $bundle)),
       ] + $this->getBundleSettings($entity_type_id, (string) $bundle, $bundle_entity), "$entity_type_id--bundles");
     }
-    $context['message'] = $this->t('Checking @entity_type types.', ['@entity_type' => $entity_type->getLabel()]);
+    $context['message'] = $this->t('Checking @label.', ['@label' => $this->getBundleListLabel($entity_type_id)]);
   }
 
   /**
@@ -653,6 +653,21 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
   protected function hasBundleList(string $entity_type_id): bool {
     return in_array('bundles', $this->configuration['sheets'], TRUE)
       && (bool) $this->entityTypeManager->getDefinition($entity_type_id)->getKey('bundle');
+  }
+
+  /**
+   * Gets the label of an entity type's bundle summary sheet.
+   *
+   * @return string|\Stringable
+   *   The bundle entity type's collection label, e.g. "Content types", or
+   *   "@entity_type types" for entity types without bundle entities.
+   */
+  protected function getBundleListLabel(string $entity_type_id): string|\Stringable {
+    $entity_type = $this->entityTypeManager->getDefinition($entity_type_id);
+    if ($bundle_entity_type = $entity_type->getBundleEntityType()) {
+      return $this->entityTypeManager->getDefinition($bundle_entity_type)->getCollectionLabel();
+    }
+    return $this->t('@entity_type types', ['@entity_type' => $entity_type->getLabel()]);
   }
 
   /**
