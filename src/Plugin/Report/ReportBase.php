@@ -81,6 +81,47 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
   }
 
   /**
+   * Normalizes a list option to a comma-separated string.
+   *
+   * List options are stored as strings, because the query string that
+   * carries report options drops empty arrays: an emptied list would fall
+   * back to its default.
+   *
+   * @param mixed $value
+   *   A list, checkbox values (unchecked ones are 0), or a string separated
+   *   by commas or whitespace, as in the query string and Drush options.
+   * @param string[]|null $allowed
+   *   (optional) The values allowed. Defaults to any.
+   *
+   * @return string
+   *   The values, without duplicates, sorted so equivalent options get the
+   *   same storage key, and separated by commas.
+   */
+  protected static function normalizeList(mixed $value, ?array $allowed = NULL): string {
+    $values = is_array($value) ? $value : preg_split('/[\s,]+/', (string) $value);
+    $values = array_unique(array_filter(array_map(fn ($item) => trim((string) $item), $values), fn ($item) => $item !== '' && $item !== '0'));
+    if ($allowed !== NULL) {
+      $values = array_intersect($values, $allowed);
+    }
+    sort($values);
+    return implode(',', $values);
+  }
+
+  /**
+   * Gets a list option's values.
+   *
+   * @param string $key
+   *   The option, stored by normalizeList().
+   *
+   * @return string[]
+   *   The values, or an empty array.
+   */
+  protected function getListOption(string $key): array {
+    $value = (string) ($this->configuration[$key] ?? '');
+    return $value === '' ? [] : explode(',', $value);
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function getConfiguration(): array {

@@ -66,7 +66,7 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return parent::defaultConfiguration() + ['include' => []];
+    return parent::defaultConfiguration() + ['include' => ''];
   }
 
   /**
@@ -74,12 +74,7 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
    */
   public function setConfiguration(array $configuration): void {
     parent::setConfiguration($configuration);
-    // Accepts a list, checkbox values (unchecked ones are 0), or a string
-    // separated by commas, as in Drush options.
-    $include = $this->configuration['include'];
-    $include = is_array($include) ? array_values(array_filter($include)) : preg_split('/[\s,]+/', (string) $include, -1, PREG_SPLIT_NO_EMPTY);
-    $include = array_values(array_intersect(['trashed', 'unpublished'], array_map('strval', $include)));
-    $this->configuration['include'] = $include;
+    $this->configuration['include'] = static::normalizeList($this->configuration['include'], ['trashed', 'unpublished']);
     $this->includeTrashedEntities($this->isIncluded('trashed'));
   }
 
@@ -97,7 +92,7 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
         'unpublished' => $this->t('Unpublished'),
         'trashed' => $this->t('Trashed'),
       ],
-      '#default_value' => $this->configuration['include'],
+      '#default_value' => $this->getListOption('include'),
     ];
     if (!$this->moduleHandler->moduleExists('trash')) {
       unset($form['include']['#options']['trashed']);

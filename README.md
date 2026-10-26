@@ -31,7 +31,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Included reports
 
-- **Absolute URLs**: links in content (link and URI fields, Custom Field link and URI subfields, and `<a>` elements in text fields) that use absolute URLs to the site's own domains. Checks text as displayed (after text format filters) or as entered.
+- **Absolute URLs**: links in content (link and URI fields, Custom Field link and URI subfields, and `<a>` elements in text fields) that use absolute URLs to the site's own domains, or to any domain when Domains is left empty. Checks text as displayed (after text format filters) or as entered.
 - **HTML elements**: elements in formatted text fields (and formatted Custom Field Text (long) subfields) that match an HTML tag, CSS selector or XPath expression, with their text and HTML. Checks text as displayed or as entered.
 - **Field list**: replaces Field UI's Field list (/admin/reports/fields), with a sheet for each of its tabs: the fields, the fields used in views (Views UI) and field permissions (Field Permissions), so each can be filtered and downloaded.
 - **Content counts**: the number of items of each bundle of each content entity type, and how many are published. Useful to find unused bundles.
@@ -70,7 +70,7 @@ A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other rout
 
 ### Options, summary, requirements, and cacheability
 
-- Reports take options through `defaultConfiguration()`, and implement `PluginFormInterface` to show a form above the report. Generated reports are stored separately for each configuration.
+- Reports take options through `defaultConfiguration()`, and implement `PluginFormInterface` to show a form above the report. Generated reports are stored separately for each configuration. Options come from the query string and Drush, so validate them in `setConfiguration()`. Store list options as comma-separated strings with `normalizeList()` and read them with `getListOption()`: the query string drops empty arrays, so an emptied list would otherwise fall back to its default.
 - `getSummary()` returns a render array describing what the report checks, e.g. the entity types, bundles and fields it scans, rather than its current options. It's shown on the report page, and defaults to the report's description.
 - The static `isApplicable(array $plugin_definition)` returns FALSE when the report doesn't apply to the site, e.g. an optional module it reports on isn't installed: it then has no menu link under Reports, and its pages return 404 Not Found.
 - `getRequirements()` returns requirements in `hook_runtime_requirements()`'s format, e.g. a warning when there's nothing to report on. Errors prevent viewing and generating the report; warnings are shown with it. Storage for generated reports is checked for you, and is the only requirement on the status report.

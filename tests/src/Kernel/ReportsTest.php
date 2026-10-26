@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\reports\Kernel;
 
+use Drupal\Component\Utility\UrlHelper;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
@@ -236,7 +237,7 @@ class ReportsTest extends KernelTestBase {
     $this->assertSame(['count' => 5], $manager->createInstance('reports_test_table')->getConfiguration());
     $this->assertSame(['count' => 3], $manager->createInstance('reports_test_table', ['count' => 3])->getConfiguration());
     // Absolute URLs adds the definition's domains to the current host.
-    $this->assertSame(['localhost', 'www.example.com'], $manager->createInstance('absolute_urls')->getConfiguration()['domains']);
+    $this->assertSame('localhost,www.example.com', $manager->createInstance('absolute_urls')->getConfiguration()['domains']);
   }
 
   /**
@@ -252,6 +253,13 @@ class ReportsTest extends KernelTestBase {
     $this->assertSame(['sheet' => 'default', 'config' => ['count' => 3]], $url->getOption('query'));
     // Reports without options have no configuration in the URL.
     $this->assertNull($manager->createInstance('reports_test_status')->toUrl()->getOption('query'));
+    // Emptied list options are kept as empty strings, which the query string
+    // keeps, so they don't fall back to their defaults.
+    $report = $manager->createInstance('absolute_urls', ['domains' => []]);
+    $query = $report->toUrl()->getOption('query');
+    $this->assertSame('', $query['config']['domains']);
+    parse_str(UrlHelper::buildQuery($query), $parsed);
+    $this->assertSame('', $manager->createInstance('absolute_urls', $parsed['config'])->getConfiguration()['domains']);
 
     $this->expectException(\InvalidArgumentException::class);
     $report->toUrl('missing');

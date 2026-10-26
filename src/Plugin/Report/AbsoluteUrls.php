@@ -11,15 +11,16 @@ use Drupal\reports\Attribute\Report;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Lists links that use absolute URLs to the site's own domains.
+ * Lists links that use absolute URLs, to the configured domains if any.
  *
- * These links break when the site's domain or the linked page's path
- * changes.
+ * Absolute URLs to the site's own domains break when the site's domain or
+ * the linked page's path changes. Without domains, every absolute URL is
+ * listed.
  */
 #[Report(
   id: 'absolute_urls',
   label: new TranslatableMarkup('Absolute URLs'),
-  description: new TranslatableMarkup('Links in content that use absolute URLs to this site, which break when the domain or page path changes.'),
+  description: new TranslatableMarkup('Links in content that use absolute URLs, e.g. to this site, which break when the domain or page path changes.'),
 )]
 class AbsoluteUrls extends LinkReportBase {
 
@@ -43,27 +44,20 @@ class AbsoluteUrls extends LinkReportBase {
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    $defaults = parent::defaultConfiguration() + ['domains' => []];
-    $defaults['domains'][] = $this->currentHost ?? 'localhost';
-    $defaults['domains'] = array_unique(array_filter($defaults['domains']));
-    sort($defaults['domains']);
+    $defaults = parent::defaultConfiguration();
+    // The current host, and any domains from the definition.
+    $defaults['domains'] = static::normalizeList(($this->currentHost ?? 'localhost') . ',' . static::normalizeList($defaults['domains'] ?? ''));
     return $defaults;
   }
 
   /**
    * {@inheritdoc}
    *
-   * Domains can be given as a list, or a string separated by commas or new
-   * lines, as in the query string and Drush options.
+   * Domains are lowercased. None means any domain.
    */
   public function setConfiguration(array $configuration): void {
     parent::setConfiguration($configuration);
-    $domains = $this->configuration['domains'];
-    $domains = is_array($domains) ? $domains : preg_split('/[\s,]+/', (string) $domains);
-    $domains = array_unique(array_filter(array_map(fn ($domain) => strtolower(trim((string) $domain)), $domains)));
-    // Sorted, so the same domains are stored as the same report.
-    sort($domains);
-    $this->configuration['domains'] = $domains;
+    $this->configuration['domains'] = static::normalizeList(strtolower(static::normalizeList($this->configuration['domains'])));
   }
 
   /**
@@ -73,9 +67,8 @@ class AbsoluteUrls extends LinkReportBase {
     $form['domains'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Domains'),
-      '#description' => $this->t('The domains of this site, one per line. Links to them are listed.'),
-      '#default_value' => implode("\n", $this->configuration['domains']),
-      '#required' => TRUE,
+      '#description' => $this->t('Links to these domains are listed, e.g. the domains of this site. One per line. Leave empty to list absolute URLs to any domain.'),
+      '#default_value' => implode("\n", $this->getListOption('domains')),
       '#rows' => 3,
     ];
     return parent::buildConfigurationForm($form, $form_state);
@@ -87,7 +80,7 @@ class AbsoluteUrls extends LinkReportBase {
   public function getSummary(): array {
     $build = parent::getSummary();
     $build['description'] = [
-      '#markup' => $this->t('Links that contain absolute URLs with the selected domains, in the following fields:'),
+      '#markup' => $this->t('Links that use absolute URLs (to the selected domains, if any), in the following fields:'),
       '#prefix' => '<p>',
       '#suffix' => '</p>',
       '#weight' => -10,
@@ -114,13 +107,14 @@ class AbsoluteUrls extends LinkReportBase {
   protected function alterFieldQuery(QueryInterface $query, string $field_name, array $field, bool $filtered): void {
     // Filters can add links that aren't in the stored text, so filtered text
     // fields check every entity with a value.
-    if ($filtered || !$this->configuration['domains']) {
+    $domains = $this->getListOption('domains');
+    if ($filtered || !$domains) {
       parent::alterFieldQuery($query, $field_name, $field, $filtered);
       return;
     }
     $or = $query->orConditionGroup();
     foreach (array_keys($field['columns']) as $column) {
-      foreach ($this->configuration['domains'] as $domain) {
+      foreach ($domains as $domain) {
         $or->condition("$field_name.$column", "//$domain", 'CONTAINS');
       }
     }
@@ -149,12 +143,16 @@ class AbsoluteUrls extends LinkReportBase {
 
   /**
    * Checks whether a URL is an absolute URL to one of the configured domains.
+   *
+   * Without domains, any absolute http or https URL matches.
    */
   protected function isAbsoluteUrl(string $url): bool {
     $parts = parse_url(trim($url));
-    return isset($parts['host'])
-      && in_array($parts['scheme'] ?? 'http', ['http', 'https'], TRUE)
-      && in_array(strtolower($parts['host']), $this->configuration['domains'], TRUE);
+    if (!isset($parts['host']) || !in_array($parts['scheme'] ?? 'http', ['http', 'https'], TRUE)) {
+      return FALSE;
+    }
+    $domains = $this->getListOption('domains');
+    return !$domains || in_array(strtolower($parts['host']), $domains, TRUE);
   }
 
 }

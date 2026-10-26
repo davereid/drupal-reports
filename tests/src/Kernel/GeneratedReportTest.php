@@ -133,6 +133,17 @@ class GeneratedReportTest extends KernelTestBase {
       $this->assertSame('complete', $this->storage->getStatus($report)['status']);
     }
 
+    // Without domains, every absolute http(s) URL is listed, but not internal
+    // or relative ones.
+    $report = $this->generate('absolute_urls', ['domains' => '', 'text_source' => 'raw']);
+    $this->assertSame([
+      'https://example.com/about',
+      'https://other.example.org/',
+      'http://EXAMPLE.com/news',
+      'https://example.com/uri',
+      'https://other.example.org/uri',
+    ], array_column(iterator_to_array($this->storage->getRows($report), FALSE), 'link_url'));
+
     // Saving content of a checked bundle changes the report's data.
     $this->assertContains('entity_test_list:entity_test', $report->getCacheTags());
     $this->assertFalse($this->storage->hasChanged($report));

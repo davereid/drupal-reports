@@ -55,22 +55,17 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return parent::defaultConfiguration() + ['vocabularies' => []];
+    return parent::defaultConfiguration() + ['vocabularies' => ''];
   }
 
   /**
    * {@inheritdoc}
    *
-   * Vocabularies can be given as a list, or a string separated by commas, as
-   * in Drush options. None means all.
+   * None means all.
    */
   public function setConfiguration(array $configuration): void {
     parent::setConfiguration($configuration);
-    $vocabularies = $this->configuration['vocabularies'];
-    $vocabularies = is_array($vocabularies) ? array_filter($vocabularies) : preg_split('/[\s,]+/', (string) $vocabularies, -1, PREG_SPLIT_NO_EMPTY);
-    $vocabularies = array_values(array_unique(array_map('strval', $vocabularies)));
-    sort($vocabularies);
-    $this->configuration['vocabularies'] = $vocabularies;
+    $this->configuration['vocabularies'] = static::normalizeList($this->configuration['vocabularies']);
   }
 
   /**
@@ -83,7 +78,7 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
       '#description' => $this->t('Leave empty to check every vocabulary.'),
       '#options' => static::isApplicable($this->pluginDefinition) ? array_map(fn ($vocabulary) => $vocabulary->label(), $this->entityTypeManager->getStorage('taxonomy_vocabulary')->loadMultiple()) : [],
       '#access' => static::isApplicable($this->pluginDefinition),
-      '#default_value' => $this->configuration['vocabularies'],
+      '#default_value' => $this->getListOption('vocabularies'),
     ];
     return parent::buildConfigurationForm($form, $form_state);
   }
@@ -228,7 +223,8 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
    */
   protected function getVocabularies(): array {
     $all = static::isApplicable($this->pluginDefinition) ? $this->entityTypeHelper->getBundles('taxonomy_term') : [];
-    return $this->configuration['vocabularies'] ? array_values(array_intersect($this->configuration['vocabularies'], $all)) : $all;
+    $vocabularies = $this->getListOption('vocabularies');
+    return $vocabularies ? array_values(array_intersect($vocabularies, $all)) : $all;
   }
 
 }

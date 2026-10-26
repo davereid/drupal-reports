@@ -143,9 +143,9 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    */
   public function defaultConfiguration(): array {
     return parent::defaultConfiguration() + [
-      'entity_types' => ['media', 'node', 'taxonomy_term'],
+      'entity_types' => 'media,node,taxonomy_term',
       // Optional sheets: each entity type's bundle summary, and text formats.
-      'sheets' => ['bundles', 'text_formats'],
+      'sheets' => 'bundles,text_formats',
     ];
   }
 
@@ -154,15 +154,8 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    */
   public function setConfiguration(array $configuration): void {
     parent::setConfiguration($configuration);
-    $types = $this->configuration['entity_types'];
-    $types = is_array($types) ? array_values(array_filter($types)) : preg_split('/[\s,]+/', (string) $types, -1, PREG_SPLIT_NO_EMPTY);
-    sort($types);
-    $this->configuration['entity_types'] = $types;
-    // Sorted, so the same sheets are stored as the same report.
-    $sheets = $this->configuration['sheets'];
-    $sheets = is_array($sheets) ? array_values(array_filter($sheets)) : preg_split('/[\s,]+/', (string) $sheets, -1, PREG_SPLIT_NO_EMPTY);
-    $sheets = array_values(array_intersect(['bundles', 'text_formats'], array_map('strval', $sheets)));
-    $this->configuration['sheets'] = $sheets;
+    $this->configuration['entity_types'] = static::normalizeList($this->configuration['entity_types']);
+    $this->configuration['sheets'] = static::normalizeList($this->configuration['sheets'], ['bundles', 'text_formats']);
   }
 
   /**
@@ -182,7 +175,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       '#type' => 'checkboxes',
       '#title' => $this->t('Entity types'),
       '#options' => $options,
-      '#default_value' => $this->configuration['entity_types'],
+      '#default_value' => $this->getListOption('entity_types'),
       '#required' => TRUE,
     ];
     $sheets = ['bundles' => $this->t("A summary of each type's bundles, e.g. content types")];
@@ -193,7 +186,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       '#type' => 'checkboxes',
       '#title' => $this->t('Also include'),
       '#options' => $sheets,
-      '#default_value' => $this->configuration['sheets'],
+      '#default_value' => $this->getListOption('sheets'),
     ];
     return $form;
   }
@@ -651,7 +644,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    * Entity types without bundles, such as users, have none.
    */
   protected function hasBundleList(string $entity_type_id): bool {
-    return in_array('bundles', $this->configuration['sheets'], TRUE)
+    return in_array('bundles', $this->getListOption('sheets'), TRUE)
       && (bool) $this->entityTypeManager->getDefinition($entity_type_id)->getKey('bundle');
   }
 
@@ -674,7 +667,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    * Checks whether the report has the text formats sheet.
    */
   protected function hasTextFormats(): bool {
-    return in_array('text_formats', $this->configuration['sheets'], TRUE) && $this->moduleHandler->moduleExists('filter');
+    return in_array('text_formats', $this->getListOption('sheets'), TRUE) && $this->moduleHandler->moduleExists('filter');
   }
 
   /**
@@ -685,7 +678,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    */
   protected function getBundles(): array {
     $bundles = [];
-    foreach ($this->configuration['entity_types'] as $entity_type_id) {
+    foreach ($this->getListOption('entity_types') as $entity_type_id) {
       $entity_type = $this->entityTypeManager->getDefinition($entity_type_id, FALSE);
       if (!$entity_type?->entityClassImplements(ContentEntityInterface::class)) {
         continue;
