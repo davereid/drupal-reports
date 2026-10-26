@@ -36,7 +36,8 @@ class ReportMenuLinks extends DeriverBase implements ContainerDeriverInterface {
   public function getDerivativeDefinitions($base_plugin_definition): array {
     $this->derivatives = [];
     foreach ($this->reportManager->getDefinitions() as $id => $definition) {
-      if (!$this->reportManager->isApplicable($id) || $this->reportManager->getConflictingRoute($id)) {
+      // Reports that replace routes use those routes' menu links.
+      if (!$this->reportManager->isApplicable($id) || $this->reportManager->getConflictingRoute($id) || $this->reportManager->getReplacedRoutes($id)) {
         continue;
       }
       $this->derivatives[$id] = [

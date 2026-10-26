@@ -18,6 +18,6 @@ interface RealtimeReportInterface extends ReportInterface {
    * @return iterable<array<string, mixed>>
    *   Rows keyed by column key.
    */
-  public function getRows(string $sheet = 'default'): iterable;
+  public function getRows(string $sheet = self::SHEET_DEFAULT): iterable;
 
 }

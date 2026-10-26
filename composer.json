@@ -10,6 +10,7 @@
     },
     "require-dev": {
         "drupal/custom_field": "*",
+        "drupal/field_permissions": "*",
         "drupal/pathauto": "*",
         "drupal/trash": "*",
         "drush/drush": "*"

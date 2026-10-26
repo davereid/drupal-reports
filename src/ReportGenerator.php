@@ -67,7 +67,7 @@ class ReportGenerator {
     $report = static::createReport($id, $configuration);
     $storage = \Drupal::service(ReportStorage::class);
     $storage->keepGenerating($report);
-    $arguments[] = new ReportWriter($storage->getTemporaryDirectory($report), $report->getSheets());
+    $arguments[] = new ReportWriter($storage->getTemporaryDirectory($report), $report);
     $arguments[] = &$context;
     $report->{$method}(...$arguments);
     // Name the report, e.g. for drush reports:generate --all, which logs each

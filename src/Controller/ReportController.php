@@ -116,11 +116,12 @@ class ReportController extends ControllerBase {
       return $build + $this->buildDownloads($report);
     }
 
-    if (count($sheets) > 1) {
+    // Reports that replace routes use those routes' local tasks as tabs.
+    if (count($sheets) > 1 && !$this->reportManager->getReplacedRoutes($report->getPluginId())) {
       $links = [];
-      foreach ($sheets as $id => $info) {
+      foreach ($sheets as $id => $label) {
         $links[$id] = [
-          'title' => $info['label'],
+          'title' => $label,
           'url' => $report->toUrl('canonical', ['query' => ['sheet' => $id]]),
         ];
       }
@@ -164,7 +165,7 @@ class ReportController extends ControllerBase {
       return $build;
     }
 
-    $header = array_map(fn ($column) => is_array($column) ? $column : ['label' => $column], $sheets[$sheet]['header']);
+    $header = array_map(fn ($column) => is_array($column) ? $column : ['label' => $column], $report->getHeader($sheet));
     $visible = array_filter($header, fn ($column) => empty($column['hidden']));
     $table_rows = [];
     // shortcut: renders every row for DataTables, switch to DataTables'
@@ -191,7 +192,7 @@ class ReportController extends ControllerBase {
       $build['report']['#attributes']['class'][] = 'reports-table';
       // The base of the filtered download's file name; the script adds the
       // filters.
-      $build['report']['#attributes']['data-reports-filename'] = str_replace(':', '-', $report->getPluginId()) . ($sheet === 'default' ? '' : "-$sheet");
+      $build['report']['#attributes']['data-reports-filename'] = str_replace(':', '-', $report->getPluginId()) . ($sheet === ReportInterface::SHEET_DEFAULT ? '' : "-$sheet");
       $build['report']['#attached']['library'][] = 'reports/report';
     }
     return $build;
@@ -212,8 +213,8 @@ class ReportController extends ControllerBase {
     }
     $counts = $report instanceof GeneratedReportInterface ? $this->reportStorage->getStatus($report)['rows'] ?? [] : [];
     $rows = [];
-    foreach ($report->getSheets() as $id => $info) {
-      $rows[] = [$info['label'], $counts[$id] ?? ''];
+    foreach ($report->getSheets() as $id => $label) {
+      $rows[] = [$label, $counts[$id] ?? ''];
     }
     $build['sheets'] = [
       '#type' => 'table',
@@ -230,7 +231,7 @@ class ReportController extends ControllerBase {
    */
   public function csv(Request $request, ReportInterface $report): Response {
     $sheet = $this->getSheet($request, $report);
-    $filename = str_replace(':', '-', $report->getPluginId()) . ($sheet === 'default' ? '' : "-$sheet") . '.csv';
+    $filename = str_replace(':', '-', $report->getPluginId()) . ($sheet === ReportInterface::SHEET_DEFAULT ? '' : "-$sheet") . '.csv';
 
     if ($report instanceof GeneratedReportInterface) {
       $uri = $this->reportStorage->getFile($report, $sheet) ?? throw new NotFoundHttpException();
@@ -238,7 +239,7 @@ class ReportController extends ControllerBase {
     }
     else {
       $response = new StreamedResponse(function () use ($report, $sheet): void {
-        $header = $report->getSheets()[$sheet]['header'];
+        $header = $report->getHeader($sheet);
         $handle = fopen('php://output', 'w');
         ReportWriter::writeCsvRow($handle, ReportWriter::getLabels($header));
         foreach ($this->reportStorage->getRows($report, $sheet) as $row) {
@@ -269,12 +270,13 @@ class ReportController extends ControllerBase {
         $writer = new XlsxWriter();
         $writer->openToFile('php://output');
         $names = [];
-        foreach ($report->getSheets() as $id => $info) {
+        foreach ($report->getSheets() as $id => $label) {
+          $header = $report->getHeader((string) $id);
           $sheet = $names ? $writer->addNewSheetAndMakeItCurrent() : $writer->getCurrentSheet();
-          $sheet->setName($names[] = ReportStorage::getSheetName((string) $info['label'], $names));
-          $writer->addRow(Row::fromValues(array_map(ReportWriter::normalizeCell(...), array_values(ReportWriter::getLabels($info['header'])))));
+          $sheet->setName($names[] = ReportStorage::getSheetName((string) $label, $names));
+          $writer->addRow(Row::fromValues(array_map(ReportWriter::normalizeCell(...), array_values(ReportWriter::getLabels($header)))));
           foreach ($this->reportStorage->getRows($report, $id) as $row) {
-            $writer->addRow(ReportWriter::toSpreadsheetRow($info['header'], ReportWriter::normalizeRow($info['header'], $row)));
+            $writer->addRow(ReportWriter::toSpreadsheetRow($header, ReportWriter::normalizeRow($header, $row)));
           }
         }
         $writer->close();
@@ -327,7 +329,8 @@ class ReportController extends ControllerBase {
    * Gets the requested sheet of a report.
    */
   protected function getSheet(Request $request, ReportInterface $report): string {
-    $sheet = (string) $request->query->get('sheet', '');
+    // Routes the report replaces set the sheet they show.
+    $sheet = (string) $request->attributes->get('sheet', $request->query->get('sheet', ''));
     return isset($report->getSheets()[$sheet]) ? $sheet : array_key_first($report->getSheets());
   }
 

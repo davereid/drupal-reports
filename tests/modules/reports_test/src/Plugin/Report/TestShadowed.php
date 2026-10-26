@@ -21,14 +21,14 @@ class TestShadowed extends ReportBase implements RealtimeReportInterface {
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return ['name' => 'Name'];
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getRows(string $sheet = 'default'): iterable {
+  public function getRows(string $sheet = self::SHEET_DEFAULT): iterable {
     return [];
   }
 

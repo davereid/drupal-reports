@@ -215,7 +215,22 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
+    if (str_ends_with($sheet, '--bundles')) {
+      return $this->getBundleHeader(substr($sheet, 0, -strlen('--bundles')));
+    }
+    if ($sheet === 'text_formats') {
+      return [
+        'format' => $this->t('Machine name'),
+        'name' => $this->t('Name'),
+        'status' => ['label' => $this->t('Enabled'), 'filter' => 'list'],
+        'roles' => $this->t('Roles'),
+        'editor' => ['label' => $this->t('Text editor'), 'filter' => 'list'],
+        'filters' => $this->t('Filters'),
+        'allowed_html' => $this->t('Allowed HTML'),
+      ];
+    }
+    // A bundle's fields.
     return [
       'label' => $this->t('Label'),
       'name' => $this->t('Machine name'),
@@ -242,25 +257,11 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
     foreach ($this->getBundles() as [$entity_type_id, $bundle, $label]) {
       // A list of the entity type's bundles, before their sheets. Bundle
       // names can't contain '-', so this can't clash with a bundle sheet.
-      $sheets["$entity_type_id--bundles"] ??= [
-        'label' => $this->t('@entity_type types', ['@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel()]),
-        'header' => $this->getBundleHeader($entity_type_id),
-      ];
-      $sheets["{$entity_type_id}__{$bundle}"] = ['label' => $label, 'header' => $this->getHeader()];
+      $sheets["$entity_type_id--bundles"] ??= $this->t('@entity_type types', ['@entity_type' => $this->entityTypeManager->getDefinition($entity_type_id)->getLabel()]);
+      $sheets["{$entity_type_id}__{$bundle}"] = $label;
     }
     if ($this->moduleHandler->moduleExists('filter')) {
-      $sheets['text_formats'] = [
-        'label' => $this->t('Text formats'),
-        'header' => [
-          'format' => $this->t('Machine name'),
-          'name' => $this->t('Name'),
-          'status' => ['label' => $this->t('Enabled'), 'filter' => 'list'],
-          'roles' => $this->t('Roles'),
-          'editor' => ['label' => $this->t('Text editor'), 'filter' => 'list'],
-          'filters' => $this->t('Filters'),
-          'allowed_html' => $this->t('Allowed HTML'),
-        ],
-      ];
+      $sheets['text_formats'] = $this->t('Text formats');
     }
     return $sheets ?: parent::getSheets();
   }

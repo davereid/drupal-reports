@@ -60,7 +60,7 @@ class ReportConfigForm extends FormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state, ?ReportInterface $report = NULL, string $sheet = 'default'): array {
+  public function buildForm(array $form, FormStateInterface $form_state, ?ReportInterface $report = NULL, string $sheet = ReportInterface::SHEET_DEFAULT): array {
     assert($report instanceof PluginFormInterface);
     $form_state->set('report', $report);
     $form['config'] = [

@@ -108,7 +108,7 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'filename' => ['label' => $this->t('File name'), 'url' => 'file_url'],
       'id' => $this->t('ID'),

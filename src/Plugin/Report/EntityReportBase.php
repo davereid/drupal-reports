@@ -134,9 +134,9 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
    *
    * The entity columns: title (linked to the page URL), type, ID, page URL
    * (hidden on the page), edit URL and state. Subclasses add their own
-   * columns to parent::getHeader().
+   * columns to parent::getHeader($sheet).
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'label' => ['label' => $this->t('Title'), 'url' => 'url'],
       'bundle' => ['label' => $this->t('Type'), 'filter' => 'list'],

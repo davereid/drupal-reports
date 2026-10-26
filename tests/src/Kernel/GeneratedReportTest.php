@@ -597,7 +597,7 @@ class GeneratedReportTest extends KernelTestBase {
    *   The rows of each tab, keyed by tab name, with the report's column keys.
    */
   protected function readSpreadsheet(GeneratedReportInterface $report): array {
-    $headers = array_values(array_map(fn ($sheet) => array_keys($sheet['header']), $report->getSheets()));
+    $headers = array_map(fn ($sheet) => array_keys($report->getHeader((string) $sheet)), array_keys($report->getSheets()));
     // OpenSpout can't read from the test's virtual file system.
     $path = tempnam(sys_get_temp_dir(), 'reports');
     copy($this->storage->getSpreadsheetFile($report), $path);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\reports\Plugin\Report;
 
+use Drupal\Core\Access\AccessManagerInterface;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Cache\Cache;
@@ -12,12 +13,26 @@ use Drupal\Core\Plugin\PluginBase;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
+use Drupal\reports\ReportManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Base class for reports with a single sheet.
+ * Base class for reports.
+ *
+ * Reports have one sheet by default: override getSheets() for more, and
+ * build each sheet's columns in getHeader($sheet).
  */
 abstract class ReportBase extends PluginBase implements ReportInterface, ContainerFactoryPluginInterface {
+
+  /**
+   * The report plugin manager.
+   */
+  protected ReportManager $reportManager;
+
+  /**
+   * The access manager.
+   */
+  protected AccessManagerInterface $accessManager;
 
   /**
    * {@inheritdoc}
@@ -31,27 +46,24 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
-    return new static($configuration, $plugin_id, $plugin_definition);
+    $instance = new static($configuration, $plugin_id, $plugin_definition);
+    $instance->reportManager = $container->get(ReportManager::class);
+    $instance->accessManager = $container->get('access_manager');
+    return $instance;
   }
-
-  /**
-   * Gets the columns of the default sheet.
-   *
-   * @return array<string, string|\Stringable|array{label: string|\Stringable, filter?: string|false}>
-   *   Columns keyed by column key, as in ReportInterface::getSheets().
-   */
-  abstract public function getHeader(): array;
 
   /**
    * {@inheritdoc}
    */
+  abstract public function getHeader(string $sheet = self::SHEET_DEFAULT): array;
+
+  /**
+   * {@inheritdoc}
+   *
+   * One sheet, labeled with the report's label.
+   */
   public function getSheets(): array {
-    return [
-      'default' => [
-        'label' => $this->pluginDefinition['label'],
-        'header' => $this->getHeader(),
-      ],
-    ];
+    return [self::SHEET_DEFAULT => $this->pluginDefinition['label']];
   }
 
   /**
@@ -170,8 +182,18 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
 
   /**
    * {@inheritdoc}
+   *
+   * Reports that replace routes (see \Drupal\reports\Attribute\Report::$routes)
+   * use the access requirements of the route that shows their default sheet,
+   * or their first route. Others need the attribute's permissions.
    */
   public function access(AccountInterface $account): AccessResultInterface {
+    if ($routes = $this->reportManager->getReplacedRoutes($this->getPluginId())) {
+      $route_name = array_search(self::SHEET_DEFAULT, $routes, TRUE) ?: array_key_first($routes);
+      $result = $this->accessManager->checkNamedRoute($route_name, [], $account, TRUE);
+      assert($result instanceof AccessResultInterface);
+      return $result;
+    }
     // A list of permissions are all needed.
     return AccessResult::allowedIfHasPermissions($account, (array) $this->pluginDefinition['permission'], 'AND');
   }

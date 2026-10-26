@@ -22,7 +22,7 @@ class TestStatus extends StatusReportBase {
   /**
    * {@inheritdoc}
    */
-  public function getRows(string $sheet = 'default'): iterable {
+  public function getRows(string $sheet = self::SHEET_DEFAULT): iterable {
     yield [
       'key' => 'cron',
       'label' => 'Cron',

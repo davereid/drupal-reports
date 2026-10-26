@@ -92,8 +92,8 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
-    $header = parent::getHeader();
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
+    $header = parent::getHeader($sheet);
     ArrayHelper::insertAfterKey($header, 'id', [
       'value' => $this->t('Value'),
       'count' => ['label' => $this->t('Count'), 'filter' => 'list'],

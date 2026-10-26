@@ -86,7 +86,12 @@ class ReportsCommands extends DrushCommands {
   #[CLI\Usage(name: 'drush reports:run absolute_urls --config=domains=example.com --format=csv', description: 'Outputs the absolute URLs to example.com as CSV.')]
   public function run(
     string $id,
-    array $options = ['config' => [], 'sheet' => 'default', 'generate' => FALSE, 'format' => 'table'],
+    array $options = [
+      'config' => [],
+      'sheet' => ReportInterface::SHEET_DEFAULT,
+      'generate' => FALSE,
+      'format' => 'table',
+    ],
   ): ?RowsOfFields {
     $report = $this->createReport($id, $options['config']);
     $download_only = !empty($report->getPluginDefinition()['downloadOnly']);
@@ -129,7 +134,7 @@ class ReportsCommands extends DrushCommands {
       return NULL;
     }
 
-    $header = $sheets[$options['sheet']]['header'];
+    $header = $report->getHeader($options['sheet']);
     $rows = [];
     foreach ($this->reportStorage->getRows($report, $options['sheet']) as $row) {
       $rows[] = array_combine(array_keys($header), ReportWriter::normalizeRow($header, $row));

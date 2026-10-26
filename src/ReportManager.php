@@ -14,6 +14,7 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\reports\Plugin\Report\GeneratedReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Routing\Route;
 
 /**
  * Manages report plugins.
@@ -123,15 +124,37 @@ class ReportManager extends DefaultPluginManager {
    *
    * @return string|null
    *   The name of the route that matches the report's page instead of
-   *   reports.report, or NULL if there's none.
+   *   reports.report, or NULL if there's none. Routes the report replaces
+   *   (see getReplacedRoutes()) show the report, so they aren't conflicts.
    */
   public function getConflictingRoute(string $id): ?string {
     // Routes are sorted the way the router matches them, best first.
     $routes = $this->routeProvider->getRoutesByPattern("/admin/reports/$id");
     foreach ($routes->getIterator() as $name => $route) {
-      return $name === 'reports.report' ? NULL : $name;
+      return $name === 'reports.report' || $route->getDefault('report') === $id ? NULL : $name;
     }
     return NULL;
+  }
+
+  /**
+   * Gets the routes a report replaces that exist.
+   *
+   * @param string $id
+   *   The report plugin ID.
+   *
+   * @return array<string, string>
+   *   The sheet each route shows, keyed by route name, for the report's
+   *   'routes' that exist, e.g. because their module is installed.
+   *
+   * @see \Drupal\reports\Attribute\Report::$routes
+   */
+  public function getReplacedRoutes(string $id): array {
+    $routes = $this->getDefinition($id)['routes'] ?? [];
+    if (!$routes) {
+      return [];
+    }
+    $existing = $this->routeProvider->getRoutesByNames(array_keys($routes));
+    return array_intersect_key($routes, array_filter($existing, fn ($route) => $route instanceof Route && $route->getDefault('report') === $id));
   }
 
   /**

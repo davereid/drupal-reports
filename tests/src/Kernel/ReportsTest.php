@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\reports\Kernel;
 
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\reports\Plugin\Report\RealtimeReportInterface;
 use Drupal\reports\Plugin\Report\ReportInterface;
@@ -92,7 +94,7 @@ class ReportsTest extends KernelTestBase {
   public function testNormalizeRow(): void {
     $report = $this->container->get(ReportManager::class)->createInstance('reports_test_table');
     assert($report instanceof RealtimeReportInterface);
-    $header = $report->getSheets()['default']['header'];
+    $header = $report->getHeader();
     $rows = array_map(fn ($row) => ReportWriter::normalizeRow($header, $row), iterator_to_array($report->getRows(), FALSE));
     $this->assertSame([
       ['Row 1', 'Link 1', 'https://example.com/1', '0'],
@@ -102,7 +104,7 @@ class ReportsTest extends KernelTestBase {
     $status = $this->container->get(ReportManager::class)->createInstance('reports_test_status');
     assert($status instanceof RealtimeReportInterface);
     $row = iterator_to_array($status->getRows(), FALSE)[0];
-    $this->assertSame(['cron', 'Cron', 'Late', 'Warning', 'Cron has not run.'], ReportWriter::normalizeRow($status->getSheets()['default']['header'], $row));
+    $this->assertSame(['cron', 'Cron', 'Late', 'Warning', 'Cron has not run.'], ReportWriter::normalizeRow($status->getHeader(), $row));
   }
 
   /**
@@ -152,6 +154,46 @@ class ReportsTest extends KernelTestBase {
     $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
     $this->assertArrayHasKey('reports.report:reports_test_table', $links);
     $this->assertArrayNotHasKey('reports.report:reports_test_shadowed', $links);
+  }
+
+  /**
+   * Tests reports that replace other modules' routes, with the Field list.
+   */
+  public function testReplacedRoutes(): void {
+    $this->enableModules(['field', 'field_ui', 'text', 'entity_test']);
+    $this->installEntitySchema('entity_test');
+    FieldStorageConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'type' => 'text'])->save();
+    FieldConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'bundle' => 'entity_test'])->save();
+    $this->container->get('router.builder')->rebuild();
+    $manager = $this->container->get(ReportManager::class);
+
+    // Field UI's route shows the report, with only its own access check.
+    $route = $this->container->get('router.route_provider')->getRouteByName('entity.field_storage_config.collection');
+    $this->assertSame('/admin/reports/fields', $route->getPath());
+    $this->assertSame('fields', $route->getDefault('report'));
+    $this->assertSame('default', $route->getDefault('sheet'));
+    $this->assertSame(['_permission' => 'administer content types'], $route->getRequirements());
+    // Routes of modules that aren't installed are skipped.
+    $this->assertSame(['entity.field_storage_config.collection' => 'default'], $manager->getReplacedRoutes('fields'));
+    $this->assertNull($manager->getConflictingRoute('fields'));
+    // Field UI's menu link is used instead of the report's own.
+    $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
+    $this->assertArrayNotHasKey('reports.report:fields', $links);
+
+    // The report's access, which its downloads use, is the route's.
+    $report = $manager->createInstance('fields');
+    $this->createUser();
+    $this->assertTrue($report->access($this->createUser(['administer content types']))->isAllowed());
+    $this->assertFalse($report->access($this->createUser(['access site reports']))->isAllowed());
+
+    // Sheets that need other modules or permissions are left out.
+    $this->assertSame(['default'], array_keys($report->getSheets()));
+    assert($report instanceof RealtimeReportInterface);
+    $rows = iterator_to_array($report->getRows(), FALSE);
+    $row = array_values(array_filter($rows, fn ($row) => $row['id'] === 'field_text'))[0];
+    $this->assertSame('entity_test', $row['entity_type']);
+    $this->assertSame('Short text (module: text)', $row['type']);
+    $this->assertSame('Entity Test Bundle', $row['usage']);
   }
 
   /**

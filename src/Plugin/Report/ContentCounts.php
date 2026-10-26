@@ -47,7 +47,7 @@ class ContentCounts extends ReportBase implements GeneratedReportInterface {
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'entity_type' => ['label' => $this->t('Entity type'), 'filter' => 'list'],
       'bundle' => $this->t('Bundle'),

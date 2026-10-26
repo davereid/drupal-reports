@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\reports;
 
+use Drupal\reports\Plugin\Report\ReportInterface;
 use Drupal\Component\Render\MarkupInterface;
 use Drupal\Component\Render\PlainTextOutput;
 use Drupal\Component\Utility\UrlHelper;
@@ -28,17 +29,28 @@ class ReportWriter {
   protected array $handles = [];
 
   /**
+   * The headers of the report's sheets, keyed by sheet ID.
+   *
+   * @var array<string, array>
+   */
+  protected array $headers = [];
+
+  /**
    * Constructs a ReportWriter.
    *
    * @param string $directory
    *   The directory to write the sheet files to. It must exist.
-   * @param array $sheets
-   *   The report's sheets, as returned by ReportInterface::getSheets().
+   * @param \Drupal\reports\Plugin\Report\ReportInterface $report
+   *   The report.
    */
   public function __construct(
     protected readonly string $directory,
-    protected readonly array $sheets,
-  ) {}
+    ReportInterface $report,
+  ) {
+    foreach (array_keys($report->getSheets()) as $sheet) {
+      $this->headers[$sheet] = $report->getHeader((string) $sheet);
+    }
+  }
 
   /**
    * Closes the files.
@@ -54,13 +66,13 @@ class ReportWriter {
    *   The row, keyed by column key. Missing columns are left empty, and
    *   unknown columns are ignored.
    * @param string $sheet
-   *   (optional) The sheet ID. Defaults to 'default'.
+   *   (optional) The sheet ID. Defaults to the default sheet.
    *
    * @throws \InvalidArgumentException
    *   If the report has no such sheet.
    */
-  public function addRow(array $row, string $sheet = 'default'): void {
-    if (!isset($this->sheets[$sheet])) {
+  public function addRow(array $row, string $sheet = ReportInterface::SHEET_DEFAULT): void {
+    if (!isset($this->headers[$sheet])) {
       throw new \InvalidArgumentException("The report has no sheet named '$sheet'.");
     }
     if (!isset($this->handles[$sheet])) {
@@ -68,20 +80,20 @@ class ReportWriter {
       $exists = file_exists($path);
       $this->handles[$sheet] = fopen($path, 'a');
       if (!$exists) {
-        static::writeCsvRow($this->handles[$sheet], static::getLabels($this->sheets[$sheet]['header']));
+        static::writeCsvRow($this->handles[$sheet], static::getLabels($this->headers[$sheet]));
       }
     }
-    static::writeCsvRow($this->handles[$sheet], static::normalizeRow($this->sheets[$sheet]['header'], $row));
+    static::writeCsvRow($this->handles[$sheet], static::normalizeRow($this->headers[$sheet], $row));
   }
 
   /**
    * Creates the files of sheets that have no rows, so they have a header.
    */
   public function createEmptySheets(): void {
-    foreach ($this->sheets as $sheet => $info) {
+    foreach ($this->headers as $sheet => $header) {
       if (!file_exists("{$this->directory}/{$sheet}.csv")) {
         $handle = fopen("{$this->directory}/{$sheet}.csv", 'w');
-        static::writeCsvRow($handle, static::getLabels($info['header']));
+        static::writeCsvRow($handle, static::getLabels($header));
         fclose($handle);
       }
     }
@@ -103,7 +115,7 @@ class ReportWriter {
    * Gets the column labels of a header.
    *
    * @param array<string, string|\Stringable|array{label: string|\Stringable, filter?: string|false}> $header
-   *   The header, as in ReportInterface::getSheets().
+   *   The header, as in ReportInterface::getHeader().
    *
    * @return array<string, string|\Stringable>
    *   The labels, keyed by column key.
@@ -136,7 +148,7 @@ class ReportWriter {
    * limits their URLs to 255 characters, so longer ones stay plain text.
    *
    * @param array<string, mixed> $header
-   *   The sheet's columns, as in ReportInterface::getSheets().
+   *   The sheet's columns, as in ReportInterface::getHeader().
    * @param list<string> $values
    *   The cells as plain text, in the header's order, e.g. a CSV row.
    *

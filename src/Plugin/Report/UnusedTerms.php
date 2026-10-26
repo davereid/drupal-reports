@@ -91,8 +91,8 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
-    $header = parent::getHeader();
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
+    $header = parent::getHeader($sheet);
     $header['bundle']['label'] = $this->t('Vocabulary');
     return $header;
   }

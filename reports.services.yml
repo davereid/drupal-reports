@@ -17,6 +17,10 @@ services:
     class: Drupal\reports\ReportGenerator
   Drupal\reports\ReportGenerator: '@reports.generator'
 
+  # Autoconfigured as an event subscriber.
+  reports.route_subscriber:
+    class: Drupal\reports\Routing\ReportRouteSubscriber
+
   reports.param_converter:
     class: Drupal\reports\Routing\ReportParamConverter
     tags:

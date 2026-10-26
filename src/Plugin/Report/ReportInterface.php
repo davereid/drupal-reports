@@ -35,15 +35,30 @@ use Drupal\Core\Url;
 interface ReportInterface extends PluginInspectionInterface, ConfigurableInterface, CacheableDependencyInterface {
 
   /**
+   * The ID of the sheet of reports with one sheet.
+   */
+  public const SHEET_DEFAULT = 'default';
+
+  /**
    * Gets the report's sheets.
    *
-   * Most reports have one sheet, 'default'. A report with several sheets,
-   * such as one per content type, shows them as tabs.
+   * Most reports have one sheet, self::SHEET_DEFAULT. A report with several
+   * sheets, such as one per content type, shows them as tabs.
    *
-   * @return array<string, array{label: string|\Stringable, header: array<string, string|\Stringable|array{label: string|\Stringable, filter?: string|false}>}>
-   *   Sheets keyed by ID, each with a label and a header keyed by column key.
-   *   Rows are keyed by the same column keys. Each column is a label, or an
-   *   array with:
+   * @return array<string, string|\Stringable>
+   *   The sheet labels, keyed by sheet ID. getHeader() gets their columns.
+   */
+  public function getSheets(): array;
+
+  /**
+   * Gets the columns of a sheet.
+   *
+   * @param string $sheet
+   *   (optional) The sheet ID, from getSheets().
+   *
+   * @return array<string, string|\Stringable|array{label: string|\Stringable, filter?: string|false, url?: string, hidden?: bool}>
+   *   Columns keyed by column key. Rows are keyed by the same column keys.
+   *   Each column is a label, or an array with:
    *   - label: The column label.
    *   - filter: (optional) A filter below the column heading: 'list' for a
    *     list of the column's values, for columns with few different values,
@@ -54,7 +69,7 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
    *   - hidden: (optional) TRUE to leave the column out of the page's table.
    *     It's still in downloads and Drush output.
    */
-  public function getSheets(): array;
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array;
 
   /**
    * Summarizes what the report checks.

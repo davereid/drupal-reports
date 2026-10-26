@@ -16,7 +16,7 @@ abstract class StatusReportBase extends ReportBase implements RealtimeReportInte
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'key' => $this->t('Key'),
       'label' => $this->t('Label'),

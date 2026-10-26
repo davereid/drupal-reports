@@ -153,8 +153,8 @@ abstract class FormattedTextReportBase extends EntityReportBase implements Gener
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
-    $header = parent::getHeader();
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
+    $header = parent::getHeader($sheet);
     ArrayHelper::insertAfterKey($header, 'id', ['field' => ['label' => $this->t('Field'), 'filter' => 'list']] + $this->getValueHeader());
     return $header;
   }

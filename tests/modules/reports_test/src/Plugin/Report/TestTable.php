@@ -31,14 +31,14 @@ class TestTable extends ReportBase implements RealtimeReportInterface {
   /**
    * {@inheritdoc}
    */
-  public function getHeader(): array {
+  public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return ['name' => 'Name', 'link' => 'Link', 'url' => 'URL', 'flag' => 'Flag'];
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getRows(string $sheet = 'default'): iterable {
+  public function getRows(string $sheet = self::SHEET_DEFAULT): iterable {
     for ($i = 1; $i <= (int) $this->configuration['count']; $i++) {
       yield [
         'name' => "Row $i",

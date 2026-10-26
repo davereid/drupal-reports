@@ -188,7 +188,7 @@ class ReportStorage {
    * @return string|null
    *   The file URI, or NULL if the report hasn't been generated.
    */
-  public function getFile(ReportInterface $report, string $sheet = 'default'): ?string {
+  public function getFile(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): ?string {
     $uri = $this->getFileUri($report, "$sheet.csv");
     return file_exists($uri) ? $uri : NULL;
   }
@@ -242,19 +242,20 @@ class ReportStorage {
       return;
     }
     $directory = $this->getTemporaryDirectory($report);
-    (new ReportWriter($directory, $sheets))->createEmptySheets();
+    (new ReportWriter($directory, $report))->createEmptySheets();
     // OpenSpout writes a zip file, which needs a local path.
     $writer = new XlsxWriter();
     $writer->openToFile($this->fileSystem->realpath($directory) . '/report.xlsx');
     $names = [];
-    foreach ($sheets as $id => $info) {
+    foreach ($sheets as $id => $label) {
+      $header = $report->getHeader((string) $id);
       $sheet = $names ? $writer->addNewSheetAndMakeItCurrent() : $writer->getCurrentSheet();
-      $sheet->setName($names[] = static::getSheetName((string) $info['label'], $names));
+      $sheet->setName($names[] = static::getSheetName((string) $label, $names));
       $handle = fopen("$directory/$id.csv", 'r');
       // The column labels, then the rows, with links.
       $writer->addRow(Row::fromValues(fgetcsv($handle, escape: '') ?: []));
       while (($cells = fgetcsv($handle, escape: '')) !== FALSE) {
-        $writer->addRow(ReportWriter::toSpreadsheetRow($info['header'], $cells));
+        $writer->addRow(ReportWriter::toSpreadsheetRow($header, $cells));
       }
       fclose($handle);
     }
@@ -287,12 +288,12 @@ class ReportStorage {
    * @return \Generator<array<string, string>>
    *   Rows keyed by column key. Nothing if the report hasn't been generated.
    */
-  public function readRows(ReportInterface $report, string $sheet = 'default'): \Generator {
+  public function readRows(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): \Generator {
     $uri = $this->getFile($report, $sheet);
     if (!$uri) {
       return;
     }
-    $keys = array_keys($report->getSheets()[$sheet]['header']);
+    $keys = array_keys($report->getHeader($sheet));
     $handle = fopen($uri, 'r');
     // Skip the column labels.
     fgetcsv($handle, escape: '');
@@ -310,7 +311,7 @@ class ReportStorage {
    *   Rows keyed by column key: from the stored file for generated reports,
    *   otherwise from the report.
    */
-  public function getRows(ReportInterface $report, string $sheet = 'default'): iterable {
+  public function getRows(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): iterable {
     return $report instanceof RealtimeReportInterface ? $report->getRows($sheet) : $this->readRows($report, $sheet);
   }
 
@@ -480,7 +481,7 @@ class ReportStorage {
     $status = $this->getStatus($report) ?? ['started' => $this->time->getCurrentTime(), 'completed' => NULL, 'uid' => 0];
     $temporary = $this->getTemporaryDirectory($report);
     if ($success) {
-      (new ReportWriter($temporary, $report->getSheets()))->createEmptySheets();
+      (new ReportWriter($temporary, $report))->createEmptySheets();
       // Download-only reports keep only their spreadsheet, and the number of
       // rows of each sheet for their page.
       if ($this->isDownloadOnly($report)) {
