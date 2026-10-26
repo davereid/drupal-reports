@@ -288,21 +288,29 @@ class ReportStorage {
   /**
    * Reads the rows of a generated sheet.
    *
-   * @return \Generator<array<string, string>>
-   *   Rows keyed by column key. Nothing if the report hasn't been generated.
+   * @return \Generator<array<string, string|string[]>>
+   *   Rows keyed by column key, with arrays for list columns. Nothing if the
+   *   report hasn't been generated.
    */
   public function readRows(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): \Generator {
     $uri = $this->getFile($report, $sheet);
     if (!$uri) {
       return;
     }
-    $keys = array_keys($report->getHeader($sheet));
+    $header = $report->getHeader($sheet);
+    $keys = array_keys($header);
+    // Lists are stored one item per line.
+    $list_keys = array_keys(array_filter($header, fn ($column) => is_array($column) && !empty($column['list'])));
     $handle = fopen($uri, 'r');
     // Skip the column labels.
     fgetcsv($handle, escape: '');
     while (($cells = fgetcsv($handle, escape: '')) !== FALSE) {
       // Pad or cut rows written before the report's columns changed.
-      yield array_combine($keys, array_slice(array_pad($cells, count($keys), ''), 0, count($keys)));
+      $row = array_combine($keys, array_slice(array_pad($cells, count($keys), ''), 0, count($keys)));
+      foreach ($list_keys as $key) {
+        $row[$key] = $row[$key] === '' ? [] : explode("\n", $row[$key]);
+      }
+      yield $row;
     }
     fclose($handle);
   }

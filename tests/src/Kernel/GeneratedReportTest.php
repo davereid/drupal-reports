@@ -365,6 +365,20 @@ class GeneratedReportTest extends KernelTestBase {
   }
 
   /**
+   * Tests list columns of generated reports.
+   */
+  public function testListColumns(): void {
+    $this->enableModules(['reports_test']);
+    $report = $this->generate('reports_test_lists', []);
+    // Lists are stored one item per line, and list columns are split back
+    // into arrays. Other text keeps its line breaks.
+    $this->assertSame([
+      ['name' => 'Several', 'items' => ['One', 'Two'], 'notes' => "Line 1\nLine 2"],
+      ['name' => 'None', 'items' => [], 'notes' => ''],
+    ], iterator_to_array($this->storage->getRows($report), FALSE));
+  }
+
+  /**
    * Tests the reports directory setting.
    */
   public function testDirectory(): void {

@@ -114,21 +114,21 @@ class FieldList extends ReportBase implements RealtimeReportInterface {
     return match ($sheet) {
       self::SHEET_VIEWS => [
         'id' => $this->t('Field name'),
-        'views' => $this->t('Used in'),
+        'views' => ['label' => $this->t('Used in'), 'list' => TRUE],
       ],
       self::SHEET_PERMISSIONS => [
         'id' => $this->t('Field name'),
         'type' => ['label' => $this->t('Field type'), 'filter' => 'list'],
         'entity_type' => ['label' => $this->t('Entity type'), 'filter' => 'list'],
-        'usage' => $this->t('Used in'),
+        'usage' => ['label' => $this->t('Used in'), 'list' => TRUE],
         'permissions' => ['label' => $this->t('Permissions'), 'filter' => 'list'],
       ],
       default => [
         'id' => $this->t('Field name'),
         'entity_type' => ['label' => $this->t('Entity type'), 'filter' => 'list'],
         'type' => ['label' => $this->t('Field type'), 'filter' => 'list'],
-        'usage' => $this->t('Used in'),
-        'settings_summary' => $this->t('Summary'),
+        'usage' => ['label' => $this->t('Used in'), 'list' => TRUE],
+        'settings_summary' => ['label' => $this->t('Summary'), 'list' => TRUE],
       ],
     };
   }

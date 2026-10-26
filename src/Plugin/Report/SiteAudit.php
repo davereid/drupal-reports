@@ -238,9 +238,9 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
         'format' => $this->t('Machine name'),
         'name' => $this->t('Name'),
         'status' => ['label' => $this->t('Enabled'), 'filter' => 'list'],
-        'roles' => $this->t('Roles'),
+        'roles' => ['label' => $this->t('Roles'), 'list' => TRUE],
         'editor' => ['label' => $this->t('Text editor'), 'filter' => 'list'],
-        'filters' => $this->t('Filters'),
+        'filters' => ['label' => $this->t('Filters'), 'list' => TRUE],
         'allowed_html' => $this->t('Allowed HTML'),
       ];
     }
@@ -249,7 +249,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       'label' => $this->t('Label'),
       'name' => $this->t('Machine name'),
       'type' => ['label' => $this->t('Field type'), 'filter' => 'list'],
-      'allowed' => $this->t('Allowed values'),
+      'allowed' => ['label' => $this->t('Allowed values'), 'list' => TRUE],
       'cardinality' => ['label' => $this->t('Cardinality'), 'filter' => 'list'],
       'required' => ['label' => $this->t('Required'), 'filter' => 'list'],
       'widget' => ['label' => $this->t('Widget'), 'filter' => 'list'],
@@ -401,12 +401,12 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       $header['media_source'] = $yes_no($this->t('Media source'));
     }
     if ($entity_type_id === 'node') {
-      $header['menus'] = $this->t('Available menus');
+      $header['menus'] = ['label' => $this->t('Available menus'), 'list' => TRUE];
       $header['preview'] = $yes_no($this->t('Preview'));
       $header['submitted'] = $yes_no($this->t('Display author and date'));
       $header['published_default'] = $yes_no($this->t('Published by default'));
     }
-    $header['url_pattern'] = $this->t('URL pattern');
+    $header['url_pattern'] = ['label' => $this->t('URL pattern'), 'list' => TRUE];
     if ($entity_type->isRevisionable()) {
       $header['revisions'] = $yes_no($this->t('New revisions'));
     }

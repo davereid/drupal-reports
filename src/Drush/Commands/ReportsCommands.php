@@ -162,13 +162,17 @@ class ReportsCommands extends DrushCommands {
     $header = $report->getHeader($options['sheet']);
     $rows = [];
     foreach ($this->reportStorage->getRows($report, $options['sheet']) as $row) {
-      $rows[] = array_combine(array_keys($header), ReportWriter::normalizeRow($header, $row));
+      // Lists stay arrays, for JSON and YAML; text formats join them below.
+      $rows[] = array_map(
+        fn ($key) => is_array($row[$key] ?? NULL) ? array_values(array_map(ReportWriter::normalizeCell(...), $row[$key])) : ReportWriter::normalizeCell($row[$key] ?? NULL),
+        array_combine(array_keys($header), array_keys($header)),
+      );
     }
     // The column labels, keyed by column key; --fields takes either. They're
     // the result's default field labels, so a report without rows still
     // prints its header.
     $labels = array_map('strval', ReportWriter::getLabels($header));
-    return new class ($rows, $labels) extends RowsOfFields {
+    $result = new class ($rows, $labels) extends RowsOfFields {
 
       public function __construct(array $data, protected array $fieldLabels) {
         parent::__construct($data);
@@ -182,6 +186,20 @@ class ReportsCommands extends DrushCommands {
       }
 
     };
+    // Formats that render cells, such as table and CSV, show lists one item
+    // per line. Drush's CSV and TSV output cuts cells off at the first line
+    // break (output-formatters 4.7.1 reads each row back with one fgets()),
+    // so they get lists separated by semicolons, and spaces for line breaks.
+    // @todo Remove the CSV and TSV handling once output-formatters is fixed:
+    //   https://github.com/consolidation/output-formatters/issues/95
+    $result->addRendererFunction(function ($key, $cell, FormatterOptions $options) {
+      $one_line = in_array($options->getFormat(), ['csv', 'tsv'], TRUE);
+      if (is_array($cell)) {
+        return implode($one_line ? ';' : "\n", $cell);
+      }
+      return $one_line && is_string($cell) ? preg_replace('/\s*\n\s*/', ' ', $cell) : $cell;
+    });
+    return $result;
   }
 
   /**

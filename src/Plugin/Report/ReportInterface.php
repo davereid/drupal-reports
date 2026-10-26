@@ -68,6 +68,10 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
    *     text to on the page.
    *   - hidden: (optional) TRUE to leave the column out of the page's table.
    *     It's still in downloads and Drush output.
+   *   - list: (optional) TRUE for columns whose cells are lists (arrays).
+   *     Generated reports store lists one item per line, and split these
+   *     columns' cells back into arrays when they're read, so they're shown
+   *     as lists on the page and as arrays in Drush's JSON and YAML output.
    */
   public function getHeader(string $sheet = self::SHEET_DEFAULT): array;
 
