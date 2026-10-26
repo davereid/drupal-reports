@@ -15,6 +15,28 @@ use Drupal\Core\Field\FieldStorageDefinitionInterface;
  */
 
 /**
+ * Alters report plugin definitions.
+ *
+ * Besides the #[Report] attribute's values, a definition can have a
+ * 'configuration' array: default options that replace the report's own
+ * defaults (ReportBase::defaultConfiguration()). Absolute URLs adds its
+ * 'domains' to the current host instead of replacing it.
+ *
+ * @param array<string, array> $definitions
+ *   The report plugin definitions, keyed by plugin ID.
+ *
+ * @see \Drupal\reports\Attribute\Report
+ */
+function hook_report_info_alter(array &$definitions): void {
+  // Let editors view the HTML elements report, and check blockquotes by
+  // default.
+  if (isset($definitions['html_elements'])) {
+    $definitions['html_elements']['roles'] = 'editor';
+    $definitions['html_elements']['configuration'] = ['selector' => 'blockquote'];
+  }
+}
+
+/**
  * Alters the formatted text columns of a field type that reports check.
  *
  * Reports built on FormattedTextReportBase, such as HTML elements and

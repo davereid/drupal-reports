@@ -218,6 +218,25 @@ class ReportsTest extends KernelTestBase {
   }
 
   /**
+   * Tests default configuration from plugin definitions.
+   */
+  public function testDefinitionConfiguration(): void {
+    $this->container->get('state')->set('reports_test.configuration', [
+      'reports_test_table' => ['count' => 5],
+      'absolute_urls' => ['domains' => ['www.example.com']],
+    ]);
+    $manager = $this->container->get(ReportManager::class);
+    $manager->clearCachedDefinitions();
+
+    // The definition's values replace the report's own defaults, and given
+    // options replace both.
+    $this->assertSame(['count' => 5], $manager->createInstance('reports_test_table')->getConfiguration());
+    $this->assertSame(['count' => 3], $manager->createInstance('reports_test_table', ['count' => 3])->getConfiguration());
+    // Absolute URLs adds the definition's domains to the current host.
+    $this->assertSame(['localhost', 'www.example.com'], $manager->createInstance('absolute_urls')->getConfiguration()['domains']);
+  }
+
+  /**
    * Tests report URLs.
    */
   public function testToUrl(): void {

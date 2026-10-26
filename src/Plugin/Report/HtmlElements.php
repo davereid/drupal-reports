@@ -26,7 +26,7 @@ class HtmlElements extends FormattedTextReportBase {
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['selector_type' => 'tag', 'selector' => ''] + parent::defaultConfiguration();
+    return parent::defaultConfiguration() + ['selector_type' => 'tag', 'selector' => ''];
   }
 
   /**

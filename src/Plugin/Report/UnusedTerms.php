@@ -55,7 +55,7 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['vocabularies' => []] + parent::defaultConfiguration();
+    return parent::defaultConfiguration() + ['vocabularies' => []];
   }
 
   /**

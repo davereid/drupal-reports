@@ -64,7 +64,7 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   public function defaultConfiguration(): array {
     $options = isset($this->entityFieldManager) ? $this->getFieldOptions() : [];
     $default = isset($options['node.title']) ? 'node.title' : (string) array_key_first($options);
-    return ['field' => $default] + parent::defaultConfiguration();
+    return parent::defaultConfiguration() + ['field' => $default];
   }
 
   /**

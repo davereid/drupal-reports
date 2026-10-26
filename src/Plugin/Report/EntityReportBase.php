@@ -66,9 +66,7 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return [
-      'include' => [],
-    ];
+    return parent::defaultConfiguration() + ['include' => []];
   }
 
   /**

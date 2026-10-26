@@ -41,4 +41,19 @@ class ReportsTestHooks {
     }
   }
 
+  /**
+   * Implements hook_report_info_alter().
+   *
+   * Sets the definitions' 'configuration' from the
+   * reports_test.configuration state, keyed by report ID.
+   */
+  #[Hook('report_info_alter')]
+  public function reportInfoAlter(array &$definitions): void {
+    foreach (\Drupal::state()->get('reports_test.configuration', []) as $id => $configuration) {
+      if (isset($definitions[$id])) {
+        $definitions[$id]['configuration'] = $configuration;
+      }
+    }
+  }
+
 }

@@ -77,7 +77,7 @@ abstract class FormattedTextReportBase extends EntityReportBase implements Gener
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['text_source' => 'filtered'] + parent::defaultConfiguration();
+    return parent::defaultConfiguration() + ['text_source' => 'filtered'];
   }
 
   /**

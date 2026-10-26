@@ -26,7 +26,7 @@ class TestTable extends ReportBase implements RealtimeReportInterface {
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['count' => 2];
+    return parent::defaultConfiguration() + ['count' => 2];
   }
 
   /**

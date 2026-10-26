@@ -69,7 +69,7 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['temporary' => FALSE];
+    return parent::defaultConfiguration() + ['temporary' => FALSE];
   }
 
   /**

@@ -142,7 +142,7 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
-    return ['entity_types' => ['media', 'node', 'taxonomy_term']];
+    return parent::defaultConfiguration() + ['entity_types' => ['media', 'node', 'taxonomy_term']];
   }
 
   /**

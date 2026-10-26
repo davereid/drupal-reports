@@ -70,9 +70,14 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
 
   /**
    * {@inheritdoc}
+   *
+   * The definition's 'configuration', e.g. set by
+   * hook_report_info_alter(). Subclasses add their own defaults after it,
+   * with parent::defaultConfiguration() + [...], so the definition's values
+   * replace them.
    */
   public function defaultConfiguration(): array {
-    return [];
+    return $this->pluginDefinition['configuration'] ?? [];
   }
 
   /**
