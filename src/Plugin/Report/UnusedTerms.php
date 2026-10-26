@@ -7,7 +7,6 @@ namespace Drupal\reports\Plugin\Report;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\reports\Attribute\Report;
 use Drupal\reports\ReportWriter;
@@ -27,7 +26,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   description: new TranslatableMarkup('Taxonomy terms that no content or other entity references.'),
   permission: ['access site reports', 'access taxonomy overview'],
 )]
-class UnusedTerms extends EntityReportBase implements GeneratedReportInterface, PluginFormInterface {
+class UnusedTerms extends EntityReportBase implements GeneratedReportInterface {
 
   /**
    * The entity field manager.
@@ -86,26 +85,14 @@ class UnusedTerms extends EntityReportBase implements GeneratedReportInterface, 
       '#access' => static::isApplicable($this->pluginDefinition),
       '#default_value' => $this->configuration['vocabularies'],
     ];
-    return $this->buildEntityConfigurationForm($form, $form_state);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state): void {}
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->setConfiguration($form_state->getValues());
+    return parent::buildConfigurationForm($form, $form_state);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getHeader(): array {
-    $header = $this->getEntityHeader();
+    $header = parent::getHeader();
     $header['bundle']['label'] = $this->t('Vocabulary');
     return $header;
   }

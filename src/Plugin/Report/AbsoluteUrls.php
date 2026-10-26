@@ -6,7 +6,6 @@ namespace Drupal\reports\Plugin\Report;
 
 use Drupal\Core\Entity\Query\QueryInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\reports\Attribute\Report;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -22,7 +21,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Absolute URLs'),
   description: new TranslatableMarkup('Links in content that use absolute URLs to this site, which break when the domain or page path changes.'),
 )]
-class AbsoluteUrls extends LinkReportBase implements PluginFormInterface {
+class AbsoluteUrls extends LinkReportBase {
 
   /**
    * The current site's host name.
@@ -75,19 +74,7 @@ class AbsoluteUrls extends LinkReportBase implements PluginFormInterface {
       '#required' => TRUE,
       '#rows' => 3,
     ];
-    return $this->buildFormattedTextConfigurationForm($form, $form_state);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state): void {}
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->setConfiguration($form_state->getValues());
+    return parent::buildConfigurationForm($form, $form_state);
   }
 
   /**

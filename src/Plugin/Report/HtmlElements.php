@@ -7,7 +7,6 @@ namespace Drupal\reports\Plugin\Report;
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\reports\Attribute\Report;
 use Symfony\Component\CssSelector\CssSelectorConverter;
@@ -21,7 +20,7 @@ use Symfony\Component\CssSelector\Exception\ExceptionInterface;
   label: new TranslatableMarkup('HTML elements'),
   description: new TranslatableMarkup('Elements in formatted text that match an HTML tag, CSS selector or XPath expression.'),
 )]
-class HtmlElements extends FormattedTextReportBase implements PluginFormInterface {
+class HtmlElements extends FormattedTextReportBase {
 
   /**
    * {@inheritdoc}
@@ -61,7 +60,7 @@ class HtmlElements extends FormattedTextReportBase implements PluginFormInterfac
       '#default_value' => $this->configuration['selector'],
       '#required' => TRUE,
     ];
-    return $this->buildFormattedTextConfigurationForm($form, $form_state);
+    return parent::buildConfigurationForm($form, $form_state);
   }
 
   /**
@@ -73,13 +72,6 @@ class HtmlElements extends FormattedTextReportBase implements PluginFormInterfac
     if ($report->getXpath() === NULL) {
       $form_state->setErrorByName('selector', $this->t('The selector is not valid.'));
     }
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->setConfiguration($form_state->getValues());
   }
 
   /**

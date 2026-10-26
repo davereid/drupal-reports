@@ -9,6 +9,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\Query\QueryInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\helper\EntityHelper;
 use Drupal\helper\EntityType;
 use Drupal\helper\TrashHelperTrait;
@@ -20,10 +21,10 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Provides:
  * - The 'include' option: a list that can contain 'unpublished' (include
  *   unpublished entities) and 'trashed' (include entities in the Trash
- *   module's trash). Empty by default. buildEntityConfigurationForm() adds
- *   its checkboxes.
+ *   module's trash). Empty by default. buildConfigurationForm() adds its
+ *   checkboxes; subclasses add their own options before calling it.
  * - getEntityQuery() and loadEntityBatch(), which apply those options.
- * - getEntityHeader() and getEntityRow(): title linked to the entity, type,
+ * - getHeader() and getEntityRow(): title linked to the entity, type,
  *   ID, page and edit URLs, and state (trashed, moderation state, published
  *   or unpublished; see \Drupal\helper\EntityHelper::getState()).
  * - getEntityCacheTags(), with bundle list cache tags.
@@ -31,7 +32,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * @internal
  *   Experimental until more reports use it: it may still change.
  */
-abstract class EntityReportBase extends ReportBase {
+abstract class EntityReportBase extends ReportBase implements PluginFormInterface {
 
   use TrashHelperTrait;
 
@@ -85,17 +86,12 @@ abstract class EntityReportBase extends ReportBase {
   }
 
   /**
-   * Builds the form elements of the entity options.
+   * {@inheritdoc}
    *
-   * @param array $form
-   *   The report's configuration form, to add the elements to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array
-   *   The form.
+   * The 'include' option. Subclasses add their own options to the form before
+   * calling this.
    */
-  protected function buildEntityConfigurationForm(array $form, FormStateInterface $form_state): array {
+  public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $form['include'] = [
       '#type' => 'checkboxes',
       '#title' => $this->t('Include'),
@@ -112,6 +108,18 @@ abstract class EntityReportBase extends ReportBase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function validateConfigurationForm(array &$form, FormStateInterface $form_state): void {}
+
+  /**
+   * {@inheritdoc}
+   */
+  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
+    $this->setConfiguration($form_state->getValues());
+  }
+
+  /**
    * Checks whether the 'include' option has a value.
    *
    * @param string $value
@@ -122,13 +130,13 @@ abstract class EntityReportBase extends ReportBase {
   }
 
   /**
-   * Gets the entity columns.
+   * {@inheritdoc}
    *
-   * @return array
-   *   The title (linked to the page URL), type, ID, page URL (hidden on the
-   *   page), edit URL and state columns, as for getHeader().
+   * The entity columns: title (linked to the page URL), type, ID, page URL
+   * (hidden on the page), edit URL and state. Subclasses add their own
+   * columns to parent::getHeader().
    */
-  protected function getEntityHeader(): array {
+  public function getHeader(): array {
     return [
       'label' => ['label' => $this->t('Title'), 'url' => 'url'],
       'bundle' => ['label' => $this->t('Type'), 'filter' => 'list'],

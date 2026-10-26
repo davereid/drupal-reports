@@ -91,18 +91,13 @@ abstract class FormattedTextReportBase extends EntityReportBase implements Gener
   }
 
   /**
-   * Builds the form elements of the entity and text source options.
+   * {@inheritdoc}
    *
-   * @param array $form
-   *   The report's configuration form, to add the elements to.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array
-   *   The form.
+   * The entity and text source options. Subclasses add their own options to
+   * the form before calling this.
    */
-  protected function buildFormattedTextConfigurationForm(array $form, FormStateInterface $form_state): array {
-    $form = $this->buildEntityConfigurationForm($form, $form_state);
+  public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
+    $form = parent::buildConfigurationForm($form, $form_state);
     $form['text_source'] = [
       '#type' => 'radios',
       '#title' => $this->t('Check text fields'),
@@ -159,7 +154,7 @@ abstract class FormattedTextReportBase extends EntityReportBase implements Gener
    * {@inheritdoc}
    */
   public function getHeader(): array {
-    $header = $this->getEntityHeader();
+    $header = parent::getHeader();
     ArrayHelper::insertAfterKey($header, 'id', ['field' => ['label' => $this->t('Field'), 'filter' => 'list']] + $this->getValueHeader());
     return $header;
   }

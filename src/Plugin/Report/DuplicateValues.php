@@ -8,7 +8,6 @@ use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\helper\ArrayHelper;
 use Drupal\reports\Attribute\Report;
@@ -23,7 +22,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Duplicate values'),
   description: new TranslatableMarkup('Content that shares the same value in a field, such as the same title or summary.'),
 )]
-class DuplicateValues extends EntityReportBase implements GeneratedReportInterface, PluginFormInterface {
+class DuplicateValues extends EntityReportBase implements GeneratedReportInterface {
 
   /**
    * The field types that can be checked: their main property is 'value'.
@@ -87,26 +86,14 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
       '#default_value' => $this->configuration['field'],
       '#required' => TRUE,
     ];
-    return $this->buildEntityConfigurationForm($form, $form_state);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state): void {}
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->setConfiguration($form_state->getValues());
+    return parent::buildConfigurationForm($form, $form_state);
   }
 
   /**
    * {@inheritdoc}
    */
   public function getHeader(): array {
-    $header = $this->getEntityHeader();
+    $header = parent::getHeader();
     ArrayHelper::insertAfterKey($header, 'id', [
       'value' => $this->t('Value'),
       'count' => ['label' => $this->t('Count'), 'filter' => 'list'],
