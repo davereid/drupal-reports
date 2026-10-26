@@ -69,12 +69,12 @@ jobs:
         run: |
           ddev config --php-version=${{ matrix.php }}
           ddev config --web-environment-add='COMPOSER_AUTH={"github-oauth":{"github.com":"${{ github.token }}"}}'
-          echo 'DRUPAL_CORE=${{ matrix.core }}' >> .ddev/.env.web
           ddev start
 
+      # core-version sets DRUPAL_CORE, restarts and runs poser.
       - name: Build the site
         run: |
-          ddev poser
+          ddev core-version '${{ matrix.core }}'
           ddev symlink-project
 
       - name: Install core's JavaScript dependencies
@@ -92,6 +92,10 @@ jobs:
       - name: ESLint
         if: ${{ !cancelled() && matrix.validate }}
         run: ddev eslint
+
+      - name: Stylelint
+        if: ${{ !cancelled() && matrix.validate }}
+        run: ddev stylelint
 
       - name: CSpell
         if: ${{ !cancelled() && matrix.validate }}
