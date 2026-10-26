@@ -214,7 +214,9 @@ class ReportsTest extends KernelTestBase {
     $rows = iterator_to_array($report->getRows(), FALSE);
     $row = array_values(array_filter($rows, fn ($row) => $row['id'] === 'field_text'))[0];
     $this->assertSame('entity_test', $row['entity_type']);
-    $this->assertSame('Short text (module: text)', $row['type']);
+    // The field type's label changed between core versions.
+    $label = $this->container->get('plugin.manager.field.field_type')->getDefinition('text')['label'];
+    $this->assertSame("$label (module: text)", $row['type']);
     $this->assertSame('Entity Test Bundle', $row['usage']);
   }
 

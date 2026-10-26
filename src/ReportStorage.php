@@ -191,9 +191,20 @@ class ReportStorage {
    */
   public function getFile(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): ?string {
     $uri = $this->getFileUri($report, "$sheet.csv");
-    // Without storage, e.g. no private file system, there are no files, and
-    // file_exists() warns about the missing stream wrapper.
-    return $this->isAvailable() && file_exists($uri) ? $uri : NULL;
+    return $this->fileExists($uri) ? $uri : NULL;
+  }
+
+  /**
+   * Checks whether a generated file exists.
+   *
+   * Without its stream wrapper, e.g. without a private file system, there's
+   * no file, and file_exists() would warn about the missing wrapper. This
+   * checks PHP's registered wrappers rather than isAvailable(), which can miss
+   * wrappers that PHP has, e.g. after a container rebuild.
+   */
+  protected function fileExists(string $uri): bool {
+    $scheme = StreamWrapperManager::getScheme($uri);
+    return (!$scheme || in_array($scheme, stream_get_wrappers(), TRUE)) && file_exists($uri);
   }
 
   /**
@@ -227,7 +238,7 @@ class ReportStorage {
    */
   public function getSpreadsheetFile(ReportInterface $report): ?string {
     $uri = $this->getFileUri($report, 'report.xlsx');
-    return $this->isAvailable() && file_exists($uri) ? $uri : NULL;
+    return $this->fileExists($uri) ? $uri : NULL;
   }
 
   /**
