@@ -1,0 +1,122 @@
+# Temporary CI until the module is on drupal.org, where .gitlab-ci.yml takes
+# over. It runs drupal.org GitLab CI's checks with ddev-drupal-contrib, which
+# builds the test site from composer.json the way drupal.org does.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    # Like drupal.org's next minor, next major and max PHP jobs, failures
+    # there don't fail the build.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      # The variants opted into in .gitlab-ci.yml (OPT_IN_TEST_*). Validation
+      # runs on the current version, as on drupal.org, and PHPStan also on the
+      # next minor and next major.
+      matrix:
+        include:
+          - name: Current
+            core: '^11'
+            php: '8.3'
+            validate: true
+            phpstan: true
+            experimental: false
+          - name: Previous minor
+            core: '~11.3.0'
+            php: '8.3'
+            validate: false
+            phpstan: false
+            experimental: false
+          - name: Next minor
+            core: '11.x-dev'
+            php: '8.4'
+            validate: false
+            phpstan: true
+            experimental: true
+          - name: Max PHP
+            core: '^11'
+            php: '8.5'
+            validate: false
+            phpstan: false
+            experimental: true
+          - name: Next major
+            core: '12.x-dev'
+            php: '8.5'
+            validate: false
+            phpstan: true
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Set up DDEV
+        run: |
+          ddev config --project-type=drupal11 --docroot=web --php-version=${{ matrix.php }}
+          ddev config --web-environment-add='COMPOSER_AUTH={"github-oauth":{"github.com":"${{ github.token }}"}}'
+          ddev add-on get ddev/ddev-drupal-contrib
+          echo 'DRUPAL_CORE=${{ matrix.core }}' >> .ddev/.env.web
+          ddev start
+
+      - name: Build the site
+        run: |
+          ddev poser
+          ddev symlink-project
+
+      - name: Install core's JavaScript dependencies
+        if: ${{ matrix.validate }}
+        run: ddev exec 'cd web/core && yarn install --frozen-lockfile'
+
+      - name: PHPCS
+        if: ${{ !cancelled() && matrix.validate }}
+        run: ddev phpcs
+
+      - name: PHPStan
+        if: ${{ !cancelled() && matrix.phpstan }}
+        run: ddev phpstan
+
+      - name: ESLint
+        if: ${{ !cancelled() && matrix.validate }}
+        run: ddev eslint
+
+      - name: CSpell
+        if: ${{ !cancelled() && matrix.validate }}
+        run: |
+          # Core's spelling configuration, plus the words in
+          # _CSPELL_DICTIONARY in .gitlab-ci.yml.
+          cat > .cspell-ci.json <<'EOF'
+          {
+            "import": ["./web/core/.cspell.json"],
+            "dictionaryDefinitions": [{"name": "module", "path": "./.cspell-words.txt", "addWords": true}],
+            "dictionaries": ["module"],
+            "ignorePaths": [".ddev/**", "vendor/**", "web/**", "node_modules/**", ".cspell-ci.json", "composer.lock"]
+          }
+          EOF
+          ddev exec 'web/core/node_modules/.bin/cspell --no-progress --config .cspell-ci.json "**"'
+
+      - name: PHPUnit
+        if: ${{ !cancelled() }}
+        run: ddev phpunit
+
+  # The single check to require in branch protection.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ needs.checks.result != 'success' }}
+        run: exit 1

@@ -1,4 +1,6 @@
+datatable
+officedocument
 openspout
-xlsx
-spreadsheetml
 openxmlformats
+spreadsheetml
+xlsx
