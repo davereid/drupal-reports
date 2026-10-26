@@ -190,7 +190,7 @@ class ReportController extends ControllerBase {
       $cells = [];
       foreach ($visible as $key => $column) {
         $url = isset($column['url']) ? $row[$column['url']] ?? NULL : NULL;
-        $cells[] = ['data' => $this->buildCell($row[$key] ?? NULL, $url)];
+        $cells[] = ['data' => $this->buildCell($row[$key] ?? NULL, $url, $column['list'] ?? FALSE)];
       }
       $table_rows[] = $cells;
     }
@@ -358,8 +358,12 @@ class ReportController extends ControllerBase {
    * @param mixed $url
    *   (optional) A URL to link the cell's text to: a \Drupal\Core\Url, or an
    *   absolute URL string as stored for generated reports.
+   * @param bool|string $list
+   *   (optional) The column's 'list' option: TRUE for a bulleted list, or an
+   *   item list style, e.g. 'comma-list'. Arrays in other columns are shown
+   *   as comma lists.
    */
-  protected function buildCell(mixed $cell, mixed $url = NULL): mixed {
+  protected function buildCell(mixed $cell, mixed $url = NULL, bool|string $list = FALSE): mixed {
     if (is_string($url) && $url !== '' && UrlHelper::isValid($url, TRUE)) {
       $url = Url::fromUri($url);
     }
@@ -367,11 +371,10 @@ class ReportController extends ControllerBase {
       return Link::fromTextAndUrl(ReportWriter::normalizeCell($cell), $url)->toRenderable();
     }
     return match (TRUE) {
-      // A list of one item is shown as the item.
-      is_array($cell) && count($cell) === 1 => $this->buildCell(reset($cell)),
       is_array($cell) => [
         '#theme' => 'item_list',
         '#items' => array_map(fn ($item) => $this->buildCell($item), array_values($cell)),
+        '#context' => ['list_style' => $list === TRUE ? NULL : ($list ?: 'comma-list')],
       ],
       $cell instanceof Link => $cell->toRenderable(),
       $cell instanceof Url => Link::fromTextAndUrl($cell->setAbsolute()->toString(), $cell)->toRenderable(),

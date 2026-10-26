@@ -21,6 +21,8 @@ report:
   dependencies:
     - core/drupal
     - core/once
+    # Styles item lists' list styles, e.g. comma lists in cells.
+    - core/drupal.item-list
     - reports/DataTables
 
 summary:
