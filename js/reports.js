@@ -41,8 +41,8 @@
    * @param {string} type
    *   'list' or 'search'.
    *
-   * @return {HTMLElement}
-   *   The filter's form item.
+   * @return {HTMLElement|null}
+   *   The filter's form item, or null for a list of a column without values.
    */
   function buildFilter(column, type) {
     const label = column.header().textContent.trim();
@@ -53,9 +53,6 @@
       return buildItem(label, input, 'search');
     }
 
-    const select = document.createElement('select');
-    select.className = 'form-select form-element form-element--type-select';
-    select.append(new Option(Drupal.t('- Any -'), ''));
     // The cells' text, as shown, rather than their HTML.
     const values = [
       ...new Set(
@@ -66,6 +63,13 @@
           .filter((value) => value !== ''),
       ),
     ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    // A list with only "- Any -" can't filter anything.
+    if (!values.length) {
+      return null;
+    }
+    const select = document.createElement('select');
+    select.className = 'form-select form-element form-element--type-select';
+    select.append(new Option(Drupal.t('- Any -'), ''));
     values.forEach((value) => select.append(new Option(value, value)));
     return buildItem(label, select, 'select');
   }
@@ -179,6 +183,9 @@
             const type = this.header().dataset.reportsFilter;
             if (type === 'list' || type === 'search') {
               const item = buildFilter(this, type);
+              if (!item) {
+                return index;
+              }
               fields.push({
                 column: this,
                 field: item.querySelector('select, input'),
