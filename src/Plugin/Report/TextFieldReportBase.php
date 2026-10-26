@@ -519,8 +519,8 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
     }
     if ($item instanceof CustomItem) {
       $settings = $item->getFieldDefinition()->getSetting('field_settings')[$column] ?? [];
-      if (!empty($settings[$column]['formatted']) && isset($settings[$column]['default_format'])) {
-        return $settings[$column]['default_format'] ?: NULL;
+      if (!empty($settings['formatted'])) {
+        return ($settings['default_format'] ?? '') ?: NULL;
       }
     }
     return FALSE;

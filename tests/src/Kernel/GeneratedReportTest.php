@@ -215,6 +215,15 @@ class GeneratedReportTest extends KernelTestBase {
    */
   public function testAbsoluteUrlsColumnsAlter(): void {
     $this->enableModules(['reports_test']);
+    // Plain text fields are now checked, including entity_test's other types'
+    // string_long base fields, such as revision log messages.
+    foreach ($this->container->get('entity_field.manager')->getFieldMap() as $entity_type_id => $fields) {
+      $base_table = $this->container->get('entity_type.manager')->getDefinition($entity_type_id)->getBaseTable();
+      if (str_starts_with($entity_type_id, 'entity_test_') && in_array('string_long', array_column($fields, 'type'), TRUE)
+        && !$this->container->get('database')->schema()->tableExists($base_table)) {
+        $this->installEntitySchema($entity_type_id);
+      }
+    }
     $fields = [
       'field_plain' => ['type' => 'string_long'],
       'field_uri' => ['type' => 'uri'],
