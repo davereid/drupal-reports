@@ -18,6 +18,7 @@ use Drupal\reports\Plugin\Report\ReportBase;
   id: 'reports_test_table',
   label: new TranslatableMarkup('Test table'),
   permission: 'administer site configuration',
+  roles: 'reports_tester+reports_auditor',
 )]
 class TestTable extends ReportBase implements RealtimeReportInterface {
 

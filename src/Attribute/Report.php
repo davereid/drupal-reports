@@ -25,12 +25,19 @@ class Report extends Plugin {
    * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $description
    *   (optional) A description, shown under the report's link on the
    *   Reports page (/admin/reports).
-   * @param string|string[] $permission
-   *   (optional) The permission needed to view the report, or a list of
-   *   permissions that are all needed, e.g. ['access site reports', 'access
-   *   files overview']. Defaults to 'access site reports'. Reports that
-   *   replace routes use those routes' access requirements instead. Plugins
-   *   can override access() for other rules.
+   * @param string $permission
+   *   (optional) The permissions needed to view the report, in the format of
+   *   a route's _permission requirement: separated by ',' when all are
+   *   needed, or by '+' when any one is enough, e.g. 'access site
+   *   reports,access files overview'. Defaults to 'access site reports'.
+   * @param string|null $roles
+   *   (optional) Role IDs that can also view the report, in the format of a
+   *   route's _role requirement: separated by ',' when all are needed, or by
+   *   '+' when any one is enough, e.g. 'editor+site_manager'. Users with the
+   *   roles can view the report even without the permissions. Reports that
+   *   replace routes use those routes' access requirements instead of
+   *   $permission and $roles. Plugins can override access() for other
+   *   rules.
    * @param string $type
    *   (optional) How the report is displayed: 'table' (default), or 'status'
    *   for core's status report. Status reports have the columns of
@@ -54,7 +61,8 @@ class Report extends Plugin {
     public readonly string $id,
     public readonly TranslatableMarkup $label,
     public readonly ?TranslatableMarkup $description = NULL,
-    public readonly string|array $permission = 'access site reports',
+    public readonly string $permission = 'access site reports',
+    public readonly ?string $roles = NULL,
     public readonly string $type = 'table',
     public readonly bool $downloadOnly = FALSE,
     public readonly array $routes = [],

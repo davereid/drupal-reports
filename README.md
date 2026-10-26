@@ -51,7 +51,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Writing reports
 
-Report plugins live in `src/Plugin/Report` and use the `#[Report]` attribute. Its `permission` is one permission or a list of permissions that are all required (`ReportBase::access()`); override `access()` for other rules. Extend `ReportBase` and implement either:
+Report plugins live in `src/Plugin/Report` and use the `#[Report]` attribute. Its `permission` and `roles` use the format of a route's `_permission` and `_role` requirements: separated by `,` when all are required, or by `+` when any one is enough, e.g. `permission: 'access site reports,access files overview'` or `roles: 'editor+site_manager'`. Users who have the permissions or the roles can view the report (`ReportBase::access()`); override `access()` for other rules. Extend `ReportBase` and implement either:
 
 - `RealtimeReportInterface`: `getRows()` builds the rows on every request.
 - `GeneratedReportInterface`: `getBatchOperations()` returns plugin methods to run as batch operations. Each is called with its arguments, a `ReportWriter` and the batch context, and adds rows with `$writer->addRow($row, $sheet)`.

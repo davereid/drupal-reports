@@ -60,6 +60,17 @@ class ReportsTest extends KernelTestBase {
     $files = $this->createUser(['access site reports', 'access files overview']);
     $this->assertFalse($manager->createInstance('unused_files')->access($reporter)->isAllowed());
     $this->assertTrue($manager->createInstance('unused_files')->access($files)->isAllowed());
+
+    // Users with any of the roles can view the report without the
+    // permission.
+    $this->createRole([], 'reports_tester');
+    $this->createRole([], 'reports_other');
+    $tester = $this->createUser();
+    $tester->addRole('reports_tester')->save();
+    $other = $this->createUser();
+    $other->addRole('reports_other')->save();
+    $this->assertTrue($manager->createInstance('reports_test_table')->access($tester)->isAllowed());
+    $this->assertFalse($manager->createInstance('reports_test_table')->access($other)->isAllowed());
   }
 
   /**

@@ -38,7 +38,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Site audit'),
   description: new TranslatableMarkup('The fields of each content and media type, with their settings, form widget and display formatter.'),
   // It shows the site's structure: fields, text formats and roles.
-  permission: ['access site reports', 'administer site configuration'],
+  permission: 'access site reports,administer site configuration',
   downloadOnly: TRUE,
 )]
 class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFormInterface {

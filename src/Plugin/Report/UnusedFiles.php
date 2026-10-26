@@ -29,7 +29,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Unused files'),
   description: new TranslatableMarkup('Files that no content, media or other file usage references.'),
   // It lists every file, including private ones, like core's file overview.
-  permission: ['access site reports', 'access files overview'],
+  permission: 'access site reports,access files overview',
 )]
 class UnusedFiles extends ReportBase implements GeneratedReportInterface, PluginFormInterface {
 

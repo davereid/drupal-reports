@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Drupal\reports\Plugin\Report;
 
 use Drupal\Core\Access\AccessManagerInterface;
-use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
@@ -14,7 +13,10 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
 use Drupal\reports\ReportManager;
+use Drupal\user\Access\PermissionAccessCheck;
+use Drupal\user\Access\RoleAccessCheck;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\Routing\Route;
 
 /**
  * Base class for reports.
@@ -194,8 +196,16 @@ abstract class ReportBase extends PluginBase implements ReportInterface, Contain
       assert($result instanceof AccessResultInterface);
       return $result;
     }
-    // A list of permissions are all needed.
-    return AccessResult::allowedIfHasPermissions($account, (array) $this->pluginDefinition['permission'], 'AND');
+    // The same checks as routes' _permission and _role requirements.
+    $route = new Route('', requirements: array_filter([
+      '_permission' => $this->pluginDefinition['permission'] ?? NULL,
+      '_role' => $this->pluginDefinition['roles'] ?? NULL,
+    ]));
+    $result = (new PermissionAccessCheck())->access($route, $account);
+    if ($route->hasRequirement('_role')) {
+      $result = $result->orIf((new RoleAccessCheck())->access($route, $account));
+    }
+    return $result;
   }
 
 }
