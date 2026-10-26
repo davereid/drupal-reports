@@ -6,11 +6,16 @@ namespace Drupal\reports_test\Hook;
 
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\Core\State\StateInterface;
 
 /**
  * Hook implementations for the Reports test module.
  */
 class ReportsTestHooks {
+
+  public function __construct(
+    protected readonly StateInterface $state,
+  ) {}
 
   /**
    * Implements hook_reports_link_columns_alter().
@@ -49,7 +54,7 @@ class ReportsTestHooks {
    */
   #[Hook('report_info_alter')]
   public function reportInfoAlter(array &$definitions): void {
-    foreach (\Drupal::state()->get('reports_test.configuration', []) as $id => $configuration) {
+    foreach ($this->state->get('reports_test.configuration', []) as $id => $configuration) {
       if (isset($definitions[$id])) {
         $definitions[$id]['configuration'] = $configuration;
       }
