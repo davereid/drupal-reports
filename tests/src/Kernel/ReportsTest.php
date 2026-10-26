@@ -181,7 +181,8 @@ class ReportsTest extends KernelTestBase {
    * Tests reports that replace other modules' routes, with the Field list.
    */
   public function testReplacedRoutes(): void {
-    $this->enableModules(['field', 'field_ui', 'text', 'entity_test']);
+    // Node defines Field UI's 'administer content types' permission.
+    $this->enableModules(['field', 'field_ui', 'node', 'text', 'entity_test']);
     $this->installEntitySchema('entity_test');
     FieldStorageConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'type' => 'text'])->save();
     FieldConfig::create(['field_name' => 'field_text', 'entity_type' => 'entity_test', 'bundle' => 'entity_test'])->save();

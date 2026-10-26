@@ -68,7 +68,7 @@ abstract class LinkReportBase extends FormattedTextReportBase {
    * hook_reports_link_custom_columns_alter().
    */
   protected function getCustomFieldColumns(FieldStorageDefinitionInterface $storage_definition): array {
-    $columns = parent::getCustomFieldColumns($storage_definition);
+    $columns = [];
     foreach ($storage_definition->getSetting('columns') ?? [] as $name => $column) {
       $columns[$name] = match ($column['type']) {
         'link' => ['text' => FALSE, 'title' => $name . '__title', 'subfield_type' => 'link'],
@@ -78,7 +78,9 @@ abstract class LinkReportBase extends FormattedTextReportBase {
     }
     $columns = array_filter($columns);
     $this->moduleHandler->alter('reports_link_custom_columns', $columns, $storage_definition);
-    return $columns;
+    // The URL subfields, with the parent's formatted text subfields. Built
+    // separately, so the URL alter hook only gets URL subfields.
+    return $columns + parent::getCustomFieldColumns($storage_definition);
   }
 
   /**

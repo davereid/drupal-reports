@@ -258,6 +258,8 @@ class GeneratedReportTest extends KernelTestBase {
     ];
     foreach ($expected as $source => $links) {
       $report = $this->generate('absolute_urls', ['domains' => 'example.com', 'text_source' => $source]);
+      $status = $this->storage->getStatus($report);
+      $this->assertSame('complete', $status['status'] ?? NULL, $source . ': ' . print_r($status, TRUE));
       $rows = iterator_to_array($this->storage->getRows($report), FALSE);
       $this->assertSame($links, array_map(fn ($row) => [$row['label'], $row['link_url']], $rows), $source);
     }

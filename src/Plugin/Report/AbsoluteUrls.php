@@ -46,6 +46,7 @@ class AbsoluteUrls extends LinkReportBase {
     $defaults = parent::defaultConfiguration() + ['domains' => []];
     $defaults['domains'][] = $this->currentHost ?? 'localhost';
     $defaults['domains'] = array_unique(array_filter($defaults['domains']));
+    sort($defaults['domains']);
     return $defaults;
   }
 
