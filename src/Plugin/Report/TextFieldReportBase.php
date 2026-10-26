@@ -12,21 +12,30 @@ use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Entity\Query\QueryInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Field\FieldItemInterface;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Field\FieldTypePluginManagerInterface;
+use Drupal\Core\Field\Plugin\Field\FieldType\UriItem;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\RendererInterface;
+use Drupal\custom_field\Plugin\Field\FieldType\CustomItem;
+use Drupal\file\Plugin\Field\FieldType\FileUriItem;
 use Drupal\helper\ArrayHelper;
+use Drupal\link\Plugin\Field\FieldType\LinkItem;
 use Drupal\reports\ReportWriter;
+use Drupal\text\Plugin\Field\FieldType\TextItemBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Base class for reports that check URLs and formatted text in content.
  *
- * Checks link fields, formatted text fields, and custom field (custom_field
- * module) link, URI and formatted Text (long) subfields, in every content
- * entity type, one batch operation per field. Subclasses list what they find
- * with getUrlRows() and getHtmlRows(), and can narrow the entity query with
- * alterFieldQuery().
+ * Checks link, URI and formatted text fields, including field types that
+ * extend them, and custom field (custom_field module) link, URI and formatted
+ * Text (long) subfields, in every content entity type, one batch operation
+ * per field. Modules can check other field types and subfield types with
+ * hook_reports_text_field_columns_alter() and
+ * hook_reports_text_field_custom_columns_alter(). Subclasses list what they
+ * find with getUrlRows() and getHtmlRows(), and can narrow the entity query
+ * with alterFieldQuery().
  *
  * Adds the 'text_source' option: check formatted text as displayed
  * ('filtered', after text format filters) or as entered ('raw').
@@ -35,11 +44,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   Experimental until more reports use it: it may still change.
  */
 abstract class TextFieldReportBase extends EntityReportBase implements GeneratedReportInterface {
-
-  /**
-   * The text field types checked as formatted text.
-   */
-  const TEXT_FIELD_TYPES = ['text', 'text_long', 'text_with_summary'];
 
   /**
    * The entity field manager.
@@ -208,7 +212,7 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
     return [
       'fields' => [
         'title' => $this->t('Fields to check'),
-        'description' => $this->t('There are no link, formatted text or custom fields with link, URI or formatted text subfields, so this report would always be empty.'),
+        'description' => $this->t('There are no field types that can be scanned, so this report would always be empty.'),
         'severity' => RequirementSeverity::Warning,
       ],
     ];
@@ -362,13 +366,10 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
         continue;
       }
       foreach ($entity_fields as $field_name => $info) {
-        $columns = match (TRUE) {
-          $info['type'] === 'link' => ['uri' => ['text' => FALSE, 'title' => 'title']],
-          in_array($info['type'], static::TEXT_FIELD_TYPES, TRUE) => ['value' => ['text' => TRUE, 'title' => NULL]],
+        $columns = $info['type'] === 'custom'
           // custom_field's field type.
-          $info['type'] === 'custom' => $this->getCustomFieldColumns($storage_definitions[$entity_type_id] ??= $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id), $field_name),
-          default => [],
-        };
+          ? $this->getCustomFieldColumns($storage_definitions[$entity_type_id] ??= $this->entityFieldManager->getFieldStorageDefinitions($entity_type_id), $field_name)
+          : $this->getFieldTypeColumns($info['type']);
         if ($columns) {
           $fields[$entity_type_id][$field_name] = [
             'type' => $info['type'],
@@ -380,6 +381,38 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
       }
     }
     return $fields;
+  }
+
+  /**
+   * Gets the columns to check of a field type.
+   *
+   * Field types are matched by their item class, so field types that extend
+   * core's link, formatted text or URI field types are checked too. Modules
+   * can change the columns with hook_reports_text_field_columns_alter().
+   *
+   * @param string $type
+   *   The field type ID.
+   *
+   * @return array<string, array{text: bool, title: ?string}>
+   *   The columns, as in getFieldColumns(), or an empty array to skip the
+   *   field type:
+   *   - Link fields (LinkItem): 'uri', with its link text in 'title'.
+   *   - Formatted text fields (TextItemBase): 'value'.
+   *   - URI fields (UriItem): 'value'. File URIs (FileUriItem), such as
+   *     public://file.pdf, aren't URLs to check.
+   */
+  protected function getFieldTypeColumns(string $type): array {
+    $class = $this->fieldTypeManager->getDefinition($type, FALSE)['class'] ?? NULL;
+    $is_uri = $class && is_a($class, UriItem::class, TRUE) && !is_a($class, FileUriItem::class, TRUE);
+    $columns = match (TRUE) {
+      $class === NULL => [],
+      is_a($class, LinkItem::class, TRUE) => ['uri' => ['text' => FALSE, 'title' => 'title']],
+      is_a($class, TextItemBase::class, TRUE) => ['value' => ['text' => TRUE, 'title' => NULL]],
+      $is_uri => ['value' => ['text' => FALSE, 'title' => NULL]],
+      default => [],
+    };
+    $this->moduleHandler->alter('reports_text_field_columns', $columns, $type);
+    return $columns;
   }
 
   /**
@@ -429,7 +462,8 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    * Gets the subfields of a custom field to check.
    *
    * Link and URI subfields, and Text (long) subfields, which are only checked
-   * on bundles where they're formatted (see getTextFormat()).
+   * on bundles where they're formatted (see getTextFormat()). Modules can
+   * change the subfields with hook_reports_text_field_custom_columns_alter().
    *
    * @param \Drupal\Core\Field\FieldStorageDefinitionInterface[] $storage_definitions
    *   The entity type's field storage definitions.
@@ -442,8 +476,12 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    * @todo Use a Helper method to find custom field subfields by type.
    */
   protected function getCustomFieldColumns(array $storage_definitions, string $field_name): array {
+    $storage_definition = $storage_definitions[$field_name] ?? NULL;
+    if (!$storage_definition instanceof FieldStorageDefinitionInterface) {
+      return [];
+    }
     $columns = [];
-    foreach ($storage_definitions[$field_name]?->getSetting('columns') ?? [] as $name => $column) {
+    foreach ($storage_definition->getSetting('columns') ?? [] as $name => $column) {
       $columns[$name] = match ($column['type']) {
         'link' => ['text' => FALSE, 'title' => $name . '__title', 'subfield_type' => 'link'],
         'uri' => ['text' => FALSE, 'title' => NULL, 'subfield_type' => 'uri'],
@@ -451,7 +489,9 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
         default => NULL,
       };
     }
-    return array_filter($columns);
+    $columns = array_filter($columns);
+    $this->moduleHandler->alter('reports_text_field_custom_columns', $columns, $storage_definition);
+    return $columns;
   }
 
   /**
@@ -473,11 +513,16 @@ abstract class TextFieldReportBase extends EntityReportBase implements Generated
    *   bundle, so it's plain text.
    */
   protected function getTextFormat(FieldableEntityInterface $entity, string $field_name, FieldItemInterface $item, string $column): string|false|null {
-    if ($column === 'value' && in_array($item->getFieldDefinition()->getType(), static::TEXT_FIELD_TYPES, TRUE)) {
-      return $item->get('format')->getValue();
+    if ($column === 'value' && $item instanceof TextItemBase) {
+      return $item->format;
     }
-    $settings = $entity->getFieldDefinition($field_name)->getSetting('field_settings')[$column] ?? [];
-    return empty($settings['formatted']) ? FALSE : (($settings['default_format'] ?? '') ?: NULL);
+    if ($item instanceof CustomItem) {
+      $settings = $item->getFieldDefinition()->getSetting('field_settings')[$column] ?? [];
+      if (!empty($settings[$column]['formatted']) && isset($settings[$column]['default_format'])) {
+        return $settings[$column]['default_format'] ?: NULL;
+      }
+    }
+    return FALSE;
   }
 
   /**

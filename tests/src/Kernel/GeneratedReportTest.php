@@ -78,7 +78,7 @@ class GeneratedReportTest extends KernelTestBase {
     // fields, including entity_test's other types with text base fields.
     foreach ($this->container->get('entity_field.manager')->getFieldMap() as $entity_type_id => $fields) {
       $types = array_column($fields, 'type');
-      $scanned = ['link', 'text', 'text_long', 'text_with_summary', 'custom'];
+      $scanned = ['link', 'text', 'text_long', 'text_with_summary', 'uri', 'custom'];
       if (str_starts_with($entity_type_id, 'entity_test') && array_intersect($types, $scanned)) {
         $this->installEntitySchema($entity_type_id);
       }
@@ -93,7 +93,7 @@ class GeneratedReportTest extends KernelTestBase {
    */
   public function testAbsoluteUrls(): void {
     FilterFormat::create(['format' => 'html', 'name' => 'HTML'])->save();
-    foreach (['field_link' => 'link', 'field_text' => 'text_long'] as $name => $type) {
+    foreach (['field_link' => 'link', 'field_text' => 'text_long', 'field_uri' => 'uri'] as $name => $type) {
       FieldStorageConfig::create([
         'field_name' => $name,
         'entity_type' => 'entity_test',
@@ -118,6 +118,7 @@ class GeneratedReportTest extends KernelTestBase {
         'value' => '<p><a href="http://EXAMPLE.com/news">News</a> <a href="/relative">Relative</a></p>',
         'format' => 'html',
       ],
+      'field_uri' => ['https://example.com/uri', 'https://other.example.org/uri'],
     ])->save();
     EntityTest::create(['name' => 'Second', 'field_text' => ['value' => 'No links', 'format' => 'html']])->save();
 
@@ -127,6 +128,7 @@ class GeneratedReportTest extends KernelTestBase {
       $this->assertSame([
         ['First', 'field_link', 'About', 'https://example.com/about'],
         ['First', 'field_text', 'News', 'http://EXAMPLE.com/news'],
+        ['First', 'field_uri', '', 'https://example.com/uri'],
       ], array_map(fn ($row) => [$row['label'], $row['field'], $row['link_text'], $row['link_url']], $rows), $source);
       $this->assertSame('complete', $this->storage->getStatus($report)['status']);
     }
@@ -203,6 +205,41 @@ class GeneratedReportTest extends KernelTestBase {
       $rows = iterator_to_array($this->storage->getRows($report), FALSE);
       $this->assertSame($links, array_map(fn ($row) => [$row['label'], $row['link_url']], $rows), $source);
     }
+  }
+
+  /**
+   * Tests changing the checked fields and subfields with alter hooks.
+   *
+   * The reports_test module checks plain text fields and subfields as URLs,
+   * and skips URI fields.
+   */
+  public function testAbsoluteUrlsColumnsAlter(): void {
+    $this->enableModules(['reports_test']);
+    $fields = [
+      'field_plain' => ['type' => 'string_long'],
+      'field_uri' => ['type' => 'uri'],
+      'field_custom' => [
+        'type' => 'custom',
+        'settings' => ['columns' => ['url' => ['name' => 'url', 'type' => 'string']]],
+      ],
+    ];
+    foreach ($fields as $name => $values) {
+      FieldStorageConfig::create(['field_name' => $name, 'entity_type' => 'entity_test'] + $values)->save();
+      FieldConfig::create(['field_name' => $name, 'entity_type' => 'entity_test', 'bundle' => 'entity_test'])->save();
+    }
+    EntityTest::create([
+      'name' => 'First',
+      'field_plain' => 'https://example.com/plain',
+      'field_uri' => 'https://example.com/uri',
+      'field_custom' => ['url' => 'https://example.com/custom'],
+    ])->save();
+
+    $report = $this->generate('absolute_urls', ['domains' => 'example.com']);
+    $rows = iterator_to_array($this->storage->getRows($report), FALSE);
+    $this->assertSame([
+      ['field_plain', 'https://example.com/plain'],
+      ['field_custom', 'https://example.com/custom'],
+    ], array_map(fn ($row) => [$row['field'], $row['link_url']], $rows));
   }
 
   /**

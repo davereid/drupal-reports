@@ -30,7 +30,7 @@ Install as you would normally install a contributed Drupal module. For further i
 
 ## Included reports
 
-- **Absolute URLs**: links in content (link fields, Custom Field link and URI subfields, and `<a>` elements in text fields) that use absolute URLs to the site's own domains. Checks text as displayed (after text format filters) or as entered.
+- **Absolute URLs**: links in content (link and URI fields, Custom Field link and URI subfields, and `<a>` elements in text fields) that use absolute URLs to the site's own domains. Checks text as displayed (after text format filters) or as entered.
 - **Content counts**: the number of items of each bundle of each content entity type, and how many are published. Useful to find unused bundles.
 - **Duplicate values**: content that shares the same value in a single-value text field, such as the title (the default) or a summary.
 - **Site audit**: an Excel workbook (download only) with, for each entity type, a sheet listing its bundles (description, URL patterns, new revisions, workflow, translation, Layout Builder, and for content types their available menus, preview and author display settings, or for media types their source) and a sheet per bundle listing its fields (field type, allowed values, cardinality, required, widget, formatter, character limit, help text), with custom field subfields as their own rows; plus a sheet of text formats.
@@ -61,7 +61,7 @@ A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other rout
 - Cells can be strings, numbers, `Url` or `Link` objects. Links are rendered as links. In files and Drush output, URLs become absolute URLs and links keep only their text.
 - Status reports (`type: 'status'`) extend `StatusReportBase`.
 - Reports meant to be read as a spreadsheet, such as ones with many sheets, can set `downloadOnly: TRUE` in their attribute: their page lists the sheets with their row counts and offers the Excel file, instead of showing a table. Only the Excel file is kept: the sheets' CSV files are deleted once it's written.
-- Reports that check URLs and formatted text in content can extend `TextFieldReportBase` (experimental), as Absolute URLs does: it finds link, formatted text and custom field subfields, adds a _Check text fields_ option, batches by field and builds the summary table. Implement `getValueHeader()`, and `getUrlRows()` and/or `getHtmlRows()`.
+- Reports that check URLs and formatted text in content can extend `TextFieldReportBase` (experimental), as Absolute URLs does: it finds link, URI and formatted text fields (including field types that extend them) and custom field subfields, adds a _Check text fields_ option, batches by field and builds the summary table. Implement `getValueHeader()`, and `getUrlRows()` and/or `getHtmlRows()`. Modules can check other field types, or skip some, with `hook_reports_text_field_columns_alter()`, and other custom field subfields with `hook_reports_text_field_custom_columns_alter()` (see `reports.api.php`), for every report built on it.
 - Reports that list entities can extend `EntityReportBase` (experimental): it adds an _include_ option (unpublished content, content in the trash), entity queries and batches that respect them, and the title, type, ID, page and edit URL and state columns (using Helper's `EntityHelper::getState()`: deleted, moderation state, published or unpublished).
 
 ### Options, summary, requirements, and cacheability
