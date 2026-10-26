@@ -28,9 +28,9 @@ use Drupal\Core\Url;
  * changed when any of them is invalidated afterwards. Prefer list cache tags,
  * such as bundle list tags, to tags of individual entities.
  *
- * Row cells can be scalars, enums, \Drupal\Core\Url, \Drupal\Core\Link or
- * markup. Links are rendered as links on the page, and as absolute URLs in
- * CSV files and Drush output.
+ * Row cells can be scalars, enums, \Drupal\Core\Url, \Drupal\Core\Link,
+ * markup or arrays (lists). See README.md for how each is shown on the page,
+ * in downloads and in Drush output, and ReportWriter::normalizeCell().
  */
 interface ReportInterface extends PluginInspectionInterface, ConfigurableInterface, CacheableDependencyInterface {
 

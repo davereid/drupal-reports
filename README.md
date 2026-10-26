@@ -61,7 +61,15 @@ A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other rout
 ### Report data
 
 - `getHeader($sheet)` returns a sheet's columns, keyed by column key: a label, or `['label' => …, 'filter' => …]` where `filter` is `'list'` (a dropdown of the column's values, for columns with few different values), `'search'` (a text box) or `FALSE` (the default: the table's search box already searches every column). `'url' => '<column key>'` links the column's text to another column's URL, and `'hidden' => TRUE` leaves a column out of the page but keeps it in downloads and Drush. Reports with several sheets also override `getSheets()`, which returns the sheet labels keyed by sheet ID; the first sheet is `ReportInterface::SHEET_DEFAULT` for reports with one sheet. `getRows($sheet)` and the report writer's `addRow($row, $sheet)` take the same sheet IDs.
-- Cells can be strings, numbers, `Url` or `Link` objects. Links are rendered as links. In files and Drush output, URLs become absolute URLs and links keep only their text.
+- Row cells, keyed by column key, can be:
+  - Strings and numbers: shown as they are. Absolute `http(s)` URLs become links on the page and `HYPERLINK()` formulas in Excel (up to Excel's 255 character limit).
+  - `Url` objects: links on the page; absolute URLs in CSV and Drush, and `HYPERLINK()` formulas in Excel.
+  - `Link` objects: links on the page; only their text in CSV, Excel and Drush. To keep the URL in downloads, put it in its own column and point to it with the column's `url` option.
+  - Arrays, for lists: a bulleted list on the page of realtime reports; one item per line in CSV, Drush and generated reports' pages, and wrapped cells in Excel.
+  - Markup, e.g. `TranslatableMarkup`: plain text, without HTML tags.
+  - Booleans: `1` or `0`. Enums: their case name. `NULL`: empty.
+
+  Generated reports store cells as text, so their pages show what the CSV holds: links for absolute URLs, and line breaks for lists. A column's `url` option links its cells to another column's URL, and `hidden` leaves it out of the page.
 - Status reports (`type: 'status'`) extend `StatusReportBase`.
 - Reports meant to be read as a spreadsheet, such as ones with many sheets, can set `downloadOnly: TRUE` in their attribute: their page lists the sheets with their row counts and offers the Excel file, instead of showing a table. Only the Excel file is kept: the sheets' CSV files are deleted once it's written.
 - Reports can replace other modules' pages with `routes` in their attribute: route names, each with the sheet it shows, e.g. `routes: ['entity.field_storage_config.collection' => self::SHEET_DEFAULT]`. The routes keep their path, access requirements, menu links and local tasks, so local tasks on them become the report's sheet tabs. The report's access, including its downloads, follows the requirements of the route that shows its default sheet, instead of its `permission`. Routes of modules that aren't installed are skipped.
