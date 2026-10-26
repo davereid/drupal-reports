@@ -601,6 +601,12 @@ class GeneratedReportTest extends KernelTestBase {
     // Entity types without bundles, such as users, have no bundle summary.
     $report = $manager->createInstance('site_audit', ['entity_types' => 'user']);
     $this->assertSame(['user__user', 'text_formats'], array_keys($report->getSheets()));
+    // Sheets are labeled with the entity type's collection label, with the
+    // bundle for entity types that have bundles.
+    $entity_type_manager = $this->container->get('entity_type.manager');
+    $this->assertSame((string) $entity_type_manager->getDefinition('user')->getCollectionLabel(), (string) $report->getSheets()['user__user']);
+    $sheets = $manager->createInstance('site_audit', ['entity_types' => 'entity_test'])->getSheets();
+    $this->assertSame($entity_type_manager->getDefinition('entity_test')->getCollectionLabel() . ': Entity Test Bundle', (string) $sheets['entity_test__entity_test']);
     $this->assertNotContains('processBundleList', array_column($report->getBatchOperations(), 0));
   }
 

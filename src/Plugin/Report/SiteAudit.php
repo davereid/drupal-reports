@@ -263,7 +263,6 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       'formatter' => ['label' => $this->t('Formatter'), 'filter' => 'list'],
       'character_limit' => $this->t('Character limit'),
       'description' => $this->t('Help text'),
-      'notes' => $this->t('Notes'),
       'translatable' => ['label' => $this->t('Translatable'), 'filter' => 'list'],
     ];
   }
@@ -676,8 +675,12 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       if (!$entity_type?->entityClassImplements(ContentEntityInterface::class)) {
         continue;
       }
+      // The collection label, e.g. "Content: Article", or just "Users" for
+      // entity types without bundles.
+      $label = (string) $entity_type->getCollectionLabel();
+      $has_bundles = (bool) $entity_type->getKey('bundle');
       foreach ($this->bundleInfo->getBundleInfo($entity_type_id) as $bundle => $info) {
-        $bundles[] = [$entity_type_id, (string) $bundle, $entity_type->getLabel() . ': ' . $info['label']];
+        $bundles[] = [$entity_type_id, (string) $bundle, $has_bundles ? "$label: {$info['label']}" : $label];
       }
     }
     return $bundles;
