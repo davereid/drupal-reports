@@ -9,6 +9,7 @@
     },
     "require-dev": {
         "drupal/custom_field": "*",
+        "drupal/pathauto": "*",
         "drupal/trash": "*",
         "drush/drush": "*"
     }
