@@ -675,12 +675,13 @@ class SiteAudit extends ReportBase implements GeneratedReportInterface, PluginFo
       if (!$entity_type?->entityClassImplements(ContentEntityInterface::class)) {
         continue;
       }
-      // The collection label, e.g. "Content: Article", or just "Users" for
-      // entity types without bundles.
-      $label = (string) $entity_type->getCollectionLabel();
+      // The bundle label, e.g. "Article", or the collection label, e.g.
+      // "Users", for entity types without bundles. Excel tab names are cut
+      // at 31 characters, so there's no entity type prefix.
       $has_bundles = (bool) $entity_type->getKey('bundle');
+      $collection_label = (string) $entity_type->getCollectionLabel();
       foreach ($this->bundleInfo->getBundleInfo($entity_type_id) as $bundle => $info) {
-        $bundles[] = [$entity_type_id, (string) $bundle, $has_bundles ? "$label: {$info['label']}" : $label];
+        $bundles[] = [$entity_type_id, (string) $bundle, $has_bundles ? (string) $info['label'] : $collection_label];
       }
     }
     return $bundles;
