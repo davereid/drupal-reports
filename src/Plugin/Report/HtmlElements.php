@@ -77,11 +77,12 @@ class HtmlElements extends FormattedTextReportBase {
   /**
    * {@inheritdoc}
    *
-   * Also an error when the selector is missing or invalid.
+   * Also an error when the selector is invalid. A missing selector isn't an
+   * error, so the page shows the options form before a report is run.
    */
   public function getRequirements(): array {
     $requirements = parent::getRequirements();
-    if ($this->getXpath() === NULL) {
+    if ($this->configuration['selector'] !== '' && $this->getXpath() === NULL) {
       $requirements['selector'] = [
         'title' => $this->t('Selector'),
         'description' => $this->t('Enter a valid HTML tag, CSS selector or XPath expression.'),
@@ -97,7 +98,7 @@ class HtmlElements extends FormattedTextReportBase {
   public function getSummary(): array {
     $build = parent::getSummary();
     $build['description'] = [
-      '#markup' => $this->t('Elements matching %selector, in the following fields:', ['%selector' => $this->configuration['selector']]),
+      '#markup' => $this->t('Elements that match an HTML tag, CSS selector or XPath expression, in the following fields:'),
       '#prefix' => '<p>',
       '#suffix' => '</p>',
       '#weight' => -10,

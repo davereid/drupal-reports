@@ -136,6 +136,16 @@ class ReportsTest extends KernelTestBase {
     $links = $this->container->get('plugin.manager.menu.link')->getDefinitions();
     $this->assertArrayHasKey('reports.report:reports_test_table', $links);
     $this->assertArrayNotHasKey('reports.report:reports_test_inapplicable', $links);
+
+    // Without the private file system, generated reports have no files, and
+    // looking for them doesn't warn about the missing stream wrapper.
+    $storage = $this->container->get(ReportStorage::class);
+    $generated = $manager->createInstance('content_counts');
+    $this->assertFalse($storage->isAvailable());
+    $this->assertFalse($manager->isUsable($generated));
+    $this->assertNull($storage->getFile($generated));
+    $this->assertNull($storage->getSpreadsheetFile($generated));
+    $this->assertFalse($storage->hasFiles($generated));
   }
 
   /**

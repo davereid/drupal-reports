@@ -12,6 +12,7 @@ use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
 use Drupal\Core\Link;
 use Drupal\Core\Plugin\PluginFormInterface;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
 use Drupal\reports\Exception\ReportGeneratingException;
@@ -59,6 +60,11 @@ class ReportController extends ControllerBase {
   protected DateFormatterInterface $dateFormatter;
 
   /**
+   * The renderer.
+   */
+  protected RendererInterface $renderer;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): static {
@@ -67,6 +73,7 @@ class ReportController extends ControllerBase {
     $instance->reportStorage = $container->get(ReportStorage::class);
     $instance->reportGenerator = $container->get(ReportGenerator::class);
     $instance->dateFormatter = $container->get('date.formatter');
+    $instance->renderer = $container->get('renderer');
     return $instance;
   }
 
@@ -88,16 +95,14 @@ class ReportController extends ControllerBase {
       ];
     }
 
-    // Errors stop the report; warnings are shown with it.
-    if ($requirements = $this->reportManager->getRequirements($report)) {
-      $build['requirements'] = $this->buildRequirements($requirements);
+    // Errors stop the report; warnings are shown with it. The options form
+    // is still shown, so errors caused by the options can be fixed.
+    $this->addRequirementMessages($this->reportManager->getRequirements($report));
+    if ($report instanceof PluginFormInterface) {
+      $build['config'] = $this->formBuilder()->getForm(ReportConfigForm::class, $report, $sheet);
     }
     if (!$this->reportManager->isUsable($report)) {
       return $build;
-    }
-
-    if ($report instanceof PluginFormInterface) {
-      $build['config'] = $this->formBuilder()->getForm(ReportConfigForm::class, $report, $sheet);
     }
 
     if ($report instanceof GeneratedReportInterface) {
@@ -389,32 +394,24 @@ class ReportController extends ControllerBase {
   }
 
   /**
-   * Builds messages for a report's requirements that aren't met.
+   * Shows a report's errors and warnings as status messages.
    *
    * @param array $requirements
    *   Requirements, as from ReportManager::getRequirements().
-   *
-   * @return array
-   *   A message for each error and warning.
    */
-  protected function buildRequirements(array $requirements): array {
-    $build = [];
-    foreach ($requirements as $key => $requirement) {
-      $type = match ($requirement['severity']) {
-        RequirementSeverity::Error => 'error',
-        RequirementSeverity::Warning => 'warning',
+  protected function addRequirementMessages(array $requirements): void {
+    foreach ($requirements as $requirement) {
+      $description = $requirement['description'] ?? '';
+      $message = $this->t('<strong>@title:</strong> @description', [
+        '@title' => $requirement['title'],
+        '@description' => is_array($description) ? $this->renderer->renderInIsolation($description) : $description,
+      ]);
+      match ($requirement['severity']) {
+        RequirementSeverity::Error => $this->messenger()->addError($message),
+        RequirementSeverity::Warning => $this->messenger()->addWarning($message),
         default => NULL,
       };
-      if ($type) {
-        $build[$key] = [
-          '#type' => 'container',
-          '#attributes' => ['class' => ['messages', "messages--$type"]],
-          'title' => ['#markup' => $requirement['title'], '#prefix' => '<strong>', '#suffix' => ':</strong> '],
-          'description' => is_array($requirement['description'] ?? NULL) ? $requirement['description'] : ['#markup' => $requirement['description'] ?? ''],
-        ];
-      }
     }
-    return $build;
   }
 
   /**

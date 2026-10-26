@@ -186,11 +186,14 @@ class ReportStorage {
    * Gets the file of a generated sheet.
    *
    * @return string|null
-   *   The file URI, or NULL if the report hasn't been generated.
+   *   The file URI, or NULL if the report hasn't been generated or reports
+   *   can't be stored.
    */
   public function getFile(ReportInterface $report, string $sheet = ReportInterface::SHEET_DEFAULT): ?string {
     $uri = $this->getFileUri($report, "$sheet.csv");
-    return file_exists($uri) ? $uri : NULL;
+    // Without storage, e.g. no private file system, there are no files, and
+    // file_exists() warns about the missing stream wrapper.
+    return $this->isAvailable() && file_exists($uri) ? $uri : NULL;
   }
 
   /**
@@ -224,7 +227,7 @@ class ReportStorage {
    */
   public function getSpreadsheetFile(ReportInterface $report): ?string {
     $uri = $this->getFileUri($report, 'report.xlsx');
-    return file_exists($uri) ? $uri : NULL;
+    return $this->isAvailable() && file_exists($uri) ? $uri : NULL;
   }
 
   /**

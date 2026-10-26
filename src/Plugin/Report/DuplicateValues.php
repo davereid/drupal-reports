@@ -122,21 +122,6 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   /**
    * {@inheritdoc}
    */
-  public function getSummary(): array {
-    $build = parent::getSummary();
-    if ($field = $this->getField()) {
-      $build['field'] = [
-        '#markup' => $this->t('Checking %field.', ['%field' => $this->getFieldOptions()[$this->configuration['field']] ?? $field[1]]),
-        '#prefix' => '<p>',
-        '#suffix' => '</p>',
-      ];
-    }
-    return $build;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function getCacheTags(): array {
     $field = $this->getField();
     return array_merge(['entity_field_info'], $field ? $this->getEntityCacheTags($field[0]) : []);

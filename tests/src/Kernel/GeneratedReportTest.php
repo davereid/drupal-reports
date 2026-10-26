@@ -207,12 +207,15 @@ class GeneratedReportTest extends KernelTestBase {
     $this->assertContains('field_text', $fields);
     $this->assertNotContains('field_link', $fields);
 
-    // Invalid or missing selectors are errors.
-    foreach ([['tag', 'a b'], ['css', 'a[['], ['xpath', '//a['], ['tag', '']] as [$type, $selector]) {
+    // Invalid selectors are errors.
+    foreach ([['tag', 'a b'], ['css', 'a[['], ['xpath', '//a[']] as [$type, $selector]) {
       $configuration = ['selector_type' => $type, 'selector' => $selector];
       $report = $this->container->get(ReportManager::class)->createInstance('html_elements', $configuration);
       $this->assertSame(RequirementSeverity::Error, $report->getRequirements()['selector']['severity'] ?? NULL, $selector);
     }
+    // A missing selector isn't, so the options form is shown first.
+    $report = $this->container->get(ReportManager::class)->createInstance('html_elements');
+    $this->assertArrayNotHasKey('selector', $report->getRequirements());
   }
 
   /**

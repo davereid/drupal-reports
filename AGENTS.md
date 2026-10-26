@@ -19,6 +19,7 @@ Drupal contrib module `reports`: plugin-based site reports, shown as DataTables 
 ## Conventions
 
 - Batch callbacks declare the context untyped (`&$context`), with `@param array|\ArrayAccess $context`.
+- `getSummary()` describes what the report checks, never its current options: don't read `$this->configuration` in it (2026-10-26: HTML elements' summary showed an empty selector before the report was run). The options form shows the options.
 - Plugins validate their configuration in `setConfiguration()`: it comes from the query string and Drush options. Sort list-like options so equivalent options get the same storage key.
 - Don't add `?destination=` to URLs that reports list, such as edit or delete links. Only add one when the target needs it to work, e.g. core's file delete form, which crashes without a destination when files have no canonical page (`UnusedFiles::processFiles()`).
 - Use list cache tags (bundle list tags, config list tags) in `getCacheTags()`, not individual entity tags.
