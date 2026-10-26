@@ -63,11 +63,12 @@ jobs:
         with:
           autostart: false
 
+      # The committed .ddev folder has ddev-drupal-contrib; only the PHP and
+      # core versions change for each variant.
       - name: Set up DDEV
         run: |
-          ddev config --project-type=drupal11 --docroot=web --php-version=${{ matrix.php }}
+          ddev config --php-version=${{ matrix.php }}
           ddev config --web-environment-add='COMPOSER_AUTH={"github-oauth":{"github.com":"${{ github.token }}"}}'
-          ddev add-on get ddev/ddev-drupal-contrib
           echo 'DRUPAL_CORE=${{ matrix.core }}' >> .ddev/.env.web
           ddev start
 
