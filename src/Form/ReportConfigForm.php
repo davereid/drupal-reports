@@ -65,9 +65,11 @@ class ReportConfigForm extends FormBase {
     $form_state->set('report', $report);
     $form['config'] = [
       '#type' => 'details',
-      '#title' => $this->t('Options'),
-      // Collapsed once there's a generated report to look at.
-      '#open' => !$report instanceof GeneratedReportInterface || !$this->reportStorage->hasFiles($report),
+      '#title' => $this->t('Report options'),
+      // Open on the first visit, before options are chosen (they're in the
+      // 'config' query string after that), and collapsed once there's a
+      // generated report to look at.
+      '#open' => !$this->getRequest()->query->has('config') || !$report instanceof GeneratedReportInterface || !$this->reportStorage->hasFiles($report),
       '#tree' => TRUE,
     ];
     $form['config'] = $report->buildConfigurationForm($form['config'], SubformState::createForSubform($form['config'], $form, $form_state));
