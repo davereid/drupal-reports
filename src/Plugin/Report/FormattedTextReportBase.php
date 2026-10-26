@@ -496,7 +496,6 @@ abstract class FormattedTextReportBase extends EntityReportBase implements Gener
    */
   protected function getTextFormat(FieldableEntityInterface $entity, string $field_name, FieldItemInterface $item, string $column): string|false|null {
     if ($column === 'value' && $item instanceof TextItemBase) {
-      // @phpstan-ignore property.notFound
       return $item->format;
     }
     if ($item instanceof CustomItem) {

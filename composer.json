@@ -6,7 +6,7 @@
     "require": {
         "drupal/helper": "^2.1",
         "openspout/openspout": "^5.3",
-        "symfony/css-selector": "^7.3 || ^8.0"
+        "symfony/css-selector": "^7.4 || ^8.1"
     },
     "require-dev": {
         "drupal/custom_field": "*",
