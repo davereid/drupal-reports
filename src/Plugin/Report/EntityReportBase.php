@@ -119,21 +119,21 @@ abstract class EntityReportBase extends ReportBase implements PluginFormInterfac
    *   The value: 'unpublished' or 'trashed'.
    */
   protected function isIncluded(string $value): bool {
-    return in_array($value, $this->configuration['include'], TRUE);
+    return in_array($value, $this->getListOption('include'), TRUE);
   }
 
   /**
    * {@inheritdoc}
    *
-   * The entity columns: title (linked to the page URL), type, ID, page URL
-   * (hidden on the page), edit URL and state. Subclasses add their own
+   * The entity columns: title (linked to the page URL), type, ID and page
+   * URL (both hidden on the page), edit URL and state. Subclasses add their own
    * columns to parent::getHeader($sheet).
    */
   public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'label' => ['label' => $this->t('Title'), 'url' => 'url'],
       'bundle' => ['label' => $this->t('Type'), 'filter' => 'list'],
-      'id' => $this->t('ID'),
+      'id' => ['label' => $this->t('ID'), 'hidden' => TRUE],
       'url' => ['label' => $this->t('Page URL'), 'hidden' => TRUE],
       'edit-url' => $this->t('Edit URL'),
       'state' => ['label' => $this->t('State'), 'filter' => 'list'],

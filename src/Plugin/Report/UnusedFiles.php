@@ -111,7 +111,7 @@ class UnusedFiles extends ReportBase implements GeneratedReportInterface, Plugin
   public function getHeader(string $sheet = self::SHEET_DEFAULT): array {
     return [
       'filename' => ['label' => $this->t('File name'), 'url' => 'file_url'],
-      'id' => $this->t('ID'),
+      'id' => ['label' => $this->t('ID'), 'hidden' => TRUE],
       'file_url' => ['label' => $this->t('File URL'), 'hidden' => TRUE],
       'mime' => ['label' => $this->t('MIME type'), 'filter' => 'list'],
       'size' => $this->t('Size'),
