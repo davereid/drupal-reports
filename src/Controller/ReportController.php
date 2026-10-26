@@ -96,9 +96,16 @@ class ReportController extends ControllerBase {
     }
 
     // Errors stop the report; warnings are shown with it. The options form
-    // is still shown, so errors caused by the options can be fixed.
-    $this->addRequirementMessages($this->reportManager->getRequirements($report));
-    if ($report instanceof PluginFormInterface) {
+    // is still shown for the report's own errors, which the options may
+    // cause, but not for site-level errors such as missing storage, which no
+    // option fixes.
+    $requirements = $this->reportManager->getRequirements($report);
+    $this->addRequirementMessages($requirements);
+    $site_errors = array_filter(
+      array_diff_key($requirements, $report->getRequirements()),
+      fn ($requirement) => $requirement['severity'] === RequirementSeverity::Error,
+    );
+    if ($report instanceof PluginFormInterface && !$site_errors) {
       $build['config'] = $this->formBuilder()->getForm(ReportConfigForm::class, $report, $sheet);
     }
     if (!$this->reportManager->isUsable($report)) {
