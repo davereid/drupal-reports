@@ -68,7 +68,9 @@ jobs:
       - name: Set up DDEV
         run: |
           ddev config --php-version=${{ matrix.php }}
-          ddev config --web-environment-add='COMPOSER_AUTH={"github-oauth":{"github.com":"${{ github.token }}"}}'
+          # Unquoted JSON in web_environment breaks DDEV's generated
+          # docker-compose YAML, so the token goes in the env file.
+          echo 'COMPOSER_AUTH='\''{"github-oauth":{"github.com":"${{ github.token }}"}}'\' >> .ddev/.env.web
           ddev start
 
       # core-version sets DRUPAL_CORE, restarts and runs poser.
