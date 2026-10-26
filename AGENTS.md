@@ -28,6 +28,7 @@ Drupal contrib module `reports`: plugin-based site reports, shown as DataTables 
 
 ## Tests
 
+- Run checks with the ddev-drupal-contrib commands from the module root: `ddev phpunit tests/src/Kernel` (the path must come first, so the command adds core's test bootstrap; `ddev exec vendor/bin/phpunit` fails with "Class KernelTestBase not found"), `ddev phpstan`, `ddev phpcs` and `ddev eslint`. They test against the core version the module's Composer setup installs (11.4 as of 2026-10-26), while `core_version_requirement` allows ^11.3: check 11.3 separately, e.g. drupal.org CI's previous-minor job.
 - Kernel tests in `tests/src/Kernel`, test plugins in `tests/modules/reports_test`.
 - `GeneratedReportTest` sets `file_private_path` in `setUpFilesystem()` (the private stream wrapper must exist before the kernel boots), and installs every `entity_test*` entity type with link or text fields, since Absolute URLs scans all content entity types.
 - Read download-only reports' data from their Excel file (`readSpreadsheet()`), since their CSVs are deleted.

@@ -593,6 +593,15 @@ class GeneratedReportTest extends KernelTestBase {
     $this->assertSame('Plain text', $formats['plain_text']['name']);
     $this->assertSame('Yes', $formats['plain_text']['status']);
     $this->assertStringContainsString('(filter_html_escape)', $formats['plain_text']['filters']);
+
+    // The bundle summaries and text formats can be left out.
+    $manager = $this->container->get(ReportManager::class);
+    $report = $manager->createInstance('site_audit', ['entity_types' => 'entity_test', 'sheets' => '']);
+    $this->assertSame(['entity_test__entity_test', 'entity_test__second'], array_keys($report->getSheets()));
+    // Entity types without bundles, such as users, have no bundle summary.
+    $report = $manager->createInstance('site_audit', ['entity_types' => 'user']);
+    $this->assertSame(['user__user', 'text_formats'], array_keys($report->getSheets()));
+    $this->assertNotContains('processBundleList', array_column($report->getBatchOperations(), 0));
   }
 
   /**
