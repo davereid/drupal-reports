@@ -65,7 +65,7 @@ A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other rout
   - Strings and numbers: shown as they are. Absolute `http(s)` URLs become links on the page and `HYPERLINK()` formulas in Excel (up to Excel's 255 character limit).
   - `Url` objects: links on the page; absolute URLs in CSV and Drush, and `HYPERLINK()` formulas in Excel.
   - `Link` objects: links on the page; only their text in CSV, Excel and Drush. To keep the URL in downloads, put it in its own column and point to it with the column's `url` option.
-  - Arrays, for lists: a bulleted list on the page of realtime reports; one item per line in CSV, Drush and generated reports' pages, and wrapped cells in Excel.
+  - Arrays, for lists: a bulleted list on the page of realtime reports, or just the item when there's only one; one item per line in CSV, Drush and generated reports' pages, and wrapped cells in Excel.
   - Markup, e.g. `TranslatableMarkup`: plain text, without HTML tags.
   - Booleans: `1` or `0`. Enums: their case name. `NULL`: empty.
 

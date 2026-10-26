@@ -364,6 +364,8 @@ class ReportController extends ControllerBase {
       return Link::fromTextAndUrl(ReportWriter::normalizeCell($cell), $url)->toRenderable();
     }
     return match (TRUE) {
+      // A list of one item is shown as the item.
+      is_array($cell) && count($cell) === 1 => $this->buildCell(reset($cell)),
       is_array($cell) => [
         '#theme' => 'item_list',
         '#items' => array_map(fn ($item) => $this->buildCell($item), array_values($cell)),
