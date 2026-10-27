@@ -1,4 +1,5 @@
 datatable
+datatables
 ddev
 officedocument
 openspout
