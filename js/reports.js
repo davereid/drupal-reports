@@ -1,79 +1,13 @@
 /**
  * @file
- * Displays report tables with DataTables, with filters above the table.
+ * Adds the filtered results download to report tables.
  *
- * Columns whose heading has data-reports-filter="list" get a select of their
- * values, and "search" a text field. They use the markup and classes of a
- * Views exposed form, so admin themes style them the same way.
+ * Report tables are started by datatables.js, with the DataTables exposed
+ * form (datatables.exposed-form.js) for their search and filters. This adds a
+ * button to download the filtered results.
  */
 
-((Drupal, once, DataTable) => {
-  /**
-   * Builds a labeled form item for a filter.
-   *
-   * @param {string} label
-   *   The column label.
-   * @param {HTMLElement} element
-   *   The select or input.
-   * @param {string} type
-   *   The form element type: 'select' or 'search'.
-   *
-   * @return {HTMLElement}
-   *   The form item.
-   */
-  function buildItem(label, element, type) {
-    const item = document.createElement('div');
-    item.className = `form-item js-form-item form-type-${type} js-form-type-${type} views-exposed-form__item`;
-    const labelElement = document.createElement('label');
-    labelElement.className = 'form-item__label';
-    labelElement.textContent = label;
-    element.id = `reports-filter-${Math.random().toString(36).slice(2)}`;
-    labelElement.htmlFor = element.id;
-    item.append(labelElement, element);
-    return item;
-  }
-
-  /**
-   * Builds the filter of a column.
-   *
-   * @param {DataTable.Api} column
-   *   The column.
-   * @param {string} type
-   *   'list' or 'search'.
-   *
-   * @return {HTMLElement|null}
-   *   The filter's form item, or null for a list of a column without values.
-   */
-  function buildFilter(column, type) {
-    const label = column.header().textContent.trim();
-    if (type === 'search') {
-      const input = document.createElement('input');
-      input.type = 'search';
-      input.className = 'form-search form-element form-element--type-search';
-      return buildItem(label, input, 'search');
-    }
-
-    // The cells' text, as shown, rather than their HTML.
-    const values = [
-      ...new Set(
-        column
-          .nodes()
-          .toArray()
-          .map((cell) => cell.textContent.trim())
-          .filter((value) => value !== ''),
-      ),
-    ].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    // A list with only "- Any -" can't filter anything.
-    if (!values.length) {
-      return null;
-    }
-    const select = document.createElement('select');
-    select.className = 'form-select form-element form-element--type-select';
-    select.append(new Option(Drupal.t('- Any -'), ''));
-    values.forEach((value) => select.append(new Option(value, value)));
-    return buildItem(label, select, 'select');
-  }
-
+((Drupal) => {
   /**
    * Downloads the rows shown, filtered and sorted, as a CSV file.
    *
@@ -114,125 +48,58 @@
     URL.revokeObjectURL(link.href);
   }
 
-  Drupal.behaviors.reportsDataTable = {
-    attach(context) {
-      once('reports-datatable', 'table.reports-table', context).forEach(
-        (table) => {
-          const dataTable = new DataTable(table, { pageLength: 50 });
+  // Added when DataTables starts on a report table (datatables.js).
+  document.addEventListener('datatables:init', (event) => {
+    const table = event.target;
+    if (!table.matches('table.reports-table')) {
+      return;
+    }
+    const { dataTable, exposedForm } = event.detail;
 
-          // A form like Views' exposed forms, so it's styled the same way:
-          // the items and actions are direct children, as in Claro's
-          // views-exposed-form.html.twig.
-          const bar = document.createElement('form');
-          bar.className = 'views-exposed-form reports-filters';
-          const submit = document.createElement('button');
-          submit.type = 'submit';
-          submit.className =
-            'button button--primary js-form-submit form-submit';
-          submit.textContent = Drupal.t('Filter');
-          const reset = document.createElement('button');
-          reset.type = 'button';
-          reset.className = 'button js-form-submit form-submit';
-          reset.textContent = Drupal.t('Reset');
-          reset.hidden = true;
-
-          const download = document.createElement('button');
-          download.type = 'button';
-          download.className = 'button js-form-submit form-submit';
-          download.textContent = Drupal.t('Download filtered results (CSV)');
-          download.hidden = true;
-          // Each filter's column and field.
-          const fields = [];
-          download.addEventListener('click', () => {
-            // The report, then each applied filter and the table's search,
-            // e.g. absolute_urls-state-unpublished.csv.
-            const slug = (value) =>
-              value
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, '');
-            const parts = [table.dataset.reportsFilename || 'report'];
-            fields.forEach(({ column }) => {
-              if (column.search()) {
-                parts.push(
-                  slug(column.header().textContent.trim()),
-                  slug(column.search()),
-                );
-              }
-            });
-            if (dataTable.search()) {
-              parts.push('search', slug(dataTable.search()));
-            }
-            const filename = parts.filter(Boolean).join('-').slice(0, 150);
-            downloadFiltered(dataTable, `${filename}.csv`);
-          });
-
-          const updateReset = () => {
-            reset.hidden = !fields.some(({ column }) => column.search() !== '');
-          };
-          // The filtered download is offered while the filters or the table's
-          // search hide rows.
-          const updateDownload = () => {
-            download.hidden =
-              dataTable.rows({ search: 'applied' }).count() ===
-              dataTable.rows().count();
-            bar.hidden = !fields.length && download.hidden;
-          };
-          dataTable.on('draw', updateDownload);
-          dataTable.columns().every(function addFilter(index) {
-            const type = this.header().dataset.reportsFilter;
-            if (type === 'list' || type === 'search') {
-              const item = buildFilter(this, type);
-              if (!item) {
-                return index;
-              }
-              fields.push({
-                column: this,
-                field: item.querySelector('select, input'),
-                exact: type === 'list',
-              });
-              bar.append(item);
-            }
-            return index;
-          });
-          // As Claro's preprocessViewsExposedForm() does, so the actions
-          // sit next to the last filter.
-          bar.lastElementChild?.classList.add(
-            'views-exposed-form__item--preceding-actions',
+    const download = document.createElement('button');
+    download.type = 'button';
+    download.className = 'button js-form-submit form-submit';
+    download.textContent = Drupal.t('Download filtered results (CSV)');
+    download.hidden = true;
+    download.addEventListener('click', () => {
+      // The report, then each applied filter and the table's search,
+      // e.g. absolute_urls-state-unpublished.csv.
+      const slug = (value) =>
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+      const parts = [table.dataset.reportsFilename || 'report'];
+      (exposedForm?.fields ?? []).forEach(({ column }) => {
+        // The table's search is added last.
+        if (column !== dataTable && column.search()) {
+          parts.push(
+            slug(column.header().textContent.trim()),
+            slug(column.search()),
           );
+        }
+      });
+      if (dataTable.search()) {
+        parts.push('search', slug(dataTable.search()));
+      }
+      const filename = parts.filter(Boolean).join('-').slice(0, 150);
+      downloadFiltered(dataTable, `${filename}.csv`);
+    });
 
-          // Filters apply when the form is submitted, as in Views.
-          bar.addEventListener('submit', (event) => {
-            event.preventDefault();
-            fields.forEach(({ column, field, exact }) => {
-              // Exact for lists, so "Published" doesn't also match
-              // "Unpublished".
-              column.search(field.value, { exact });
-            });
-            dataTable.draw();
-            updateReset();
-          });
-          reset.addEventListener('click', () => {
-            fields.forEach(({ column, field }) => {
-              field.value = '';
-              column.search('');
-            });
-            dataTable.draw();
-            updateReset();
-          });
-          const actions = document.createElement('div');
-          actions.className =
-            'form-actions js-form-wrapper form-wrapper views-exposed-form__item views-exposed-form__item--actions';
-          if (fields.length) {
-            actions.append(submit, reset);
-          }
-          actions.append(download);
-          bar.append(actions);
-          const container = dataTable.table().container();
-          container.parentNode.insertBefore(bar, container);
-          updateDownload();
-        },
-      );
-    },
-  };
-})(Drupal, once, window.DataTable);
+    // The filtered download is offered while the search or filters
+    // hide rows. Without an exposed form, it goes above the table.
+    if (exposedForm) {
+      exposedForm.actions.append(download);
+    } else {
+      const container = dataTable.table().container();
+      container.parentNode.insertBefore(download, container);
+    }
+    const updateDownload = () => {
+      download.hidden =
+        dataTable.rows({ search: 'applied' }).count() ===
+        dataTable.rows().count();
+    };
+    dataTable.on('draw', updateDownload);
+    updateDownload();
+  });
+})(Drupal);

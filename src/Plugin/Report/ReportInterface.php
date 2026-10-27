@@ -62,8 +62,8 @@ interface ReportInterface extends PluginInspectionInterface, ConfigurableInterfa
    *   - label: The column label.
    *   - filter: (optional) A filter below the column heading: 'list' for a
    *     list of the column's values, for columns with few different values,
-   *     or 'search' for a text search. Defaults to FALSE: the table's search
-   *     box already searches every column.
+   *     or 'search' for a text search. Defaults to FALSE: the filter bar's
+   *     Search field already searches every column.
    *   - url: (optional) The key of a column with a URL to link this column's
    *     text to on the page.
    *   - hidden: (optional) TRUE to leave the column out of the page's table.

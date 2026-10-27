@@ -198,7 +198,7 @@ class ReportController extends ControllerBase {
       '#type' => 'table',
       '#header' => array_values(array_map(fn ($column) => [
         'data' => $column['label'],
-        'data-reports-filter' => $column['filter'] ?? FALSE ?: 'none',
+        'data-datatables-exposed-filter' => $column['filter'] ?? FALSE ?: 'none',
       ], $visible)),
       '#rows' => $table_rows,
       '#empty' => $this->t('No results.'),
@@ -206,6 +206,11 @@ class ReportController extends ControllerBase {
     // DataTables' search, filters and paging are only useful with rows.
     if ($table_rows) {
       $build['report']['#attributes']['class'][] = 'reports-table';
+      // Started by datatables.js, with the search and column filters in an
+      // exposed form above the table.
+      $build['report']['#attributes']['data-datatables'] = '';
+      $build['report']['#attributes']['data-datatables-page-length'] = 50;
+      $build['report']['#attributes']['data-datatables-exposed-form'] = '';
       // The base of the filtered download's file name; the script adds the
       // filters.
       $build['report']['#attributes']['data-reports-filename'] = str_replace(':', '-', $report->getPluginId()) . ($sheet === ReportInterface::SHEET_DEFAULT ? '' : "-$sheet");

@@ -20,9 +20,29 @@ report:
     js/reports.js: {}
   dependencies:
     - core/drupal
-    - core/once
     # Styles item lists' list styles, e.g. comma lists in cells.
     - core/drupal.item-list
+    - reports/drupal.datatables
+
+# DataTables and the drupal.datatables* libraries are generic, to move to the
+# datatables module later.
+drupal.datatables:
+  js:
+    js/datatables.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - reports/DataTables
+    - reports/drupal.datatables.exposedForm
+
+drupal.datatables.exposedForm:
+  css:
+    component:
+      css/datatables.exposed-form.css: {}
+  js:
+    js/datatables.exposed-form.js: {}
+  dependencies:
+    - core/drupal
     - reports/DataTables
 
 summary:

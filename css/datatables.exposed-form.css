@@ -1,0 +1,9 @@
+/**
+ * @file
+ * Styles for DataTables exposed forms.
+ */
+
+/* Buttons set their own display, which overrides the hidden attribute. */
+.datatables-exposed-form [hidden] {
+  display: none;
+}
