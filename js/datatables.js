@@ -4,14 +4,17 @@
  *
  * Options come from data attributes:
  * - data-datatables-page-length: The number of rows per page.
- * - data-datatables-exposed-form (and -autosubmit): See
- *   datatables.exposed-form.js.
  *
  * Other scripts get the instance from the datatables:init event, dispatched
  * on the table (and bubbling) with the DataTables API instance in
- * event.detail.dataTable, and the exposed form, if any, in
- * event.detail.exposedForm. Listen for it on the document when the script
+ * event.detail.dataTable. Listen for it on the document when the script
  * loads, since tables can start before other behaviors attach.
+ *
+ * Add-ons, such as the exposed form (datatables.exposed-form.js), also listen
+ * for it and add what they build to event.detail, e.g.
+ * event.detail.exposedForm (null without one). Listeners run in the order
+ * they were added, so scripts that read an add-on's detail must have its
+ * library as a dependency.
  */
 
 ((Drupal, once, DataTable) => {
@@ -24,11 +27,10 @@
           options.pageLength = pageLength;
         }
         const dataTable = new DataTable(table, options);
-        const exposedForm = Drupal.dataTablesExposedForm.attach(dataTable);
         table.dispatchEvent(
           new CustomEvent('datatables:init', {
             bubbles: true,
-            detail: { dataTable, exposedForm },
+            detail: { dataTable, exposedForm: null },
           }),
         );
       });

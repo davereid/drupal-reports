@@ -56,10 +56,10 @@
     }
     const { dataTable, exposedForm } = event.detail;
 
-    const download = document.createElement('button');
-    download.type = 'button';
-    download.className = 'button js-form-submit form-submit';
-    download.textContent = Drupal.t('Download filtered results (CSV)');
+    const download = Drupal.theme(
+      'dataTablesButton',
+      Drupal.t('Download filtered results (CSV)'),
+    );
     download.hidden = true;
     download.addEventListener('click', () => {
       // The report, then each applied filter and the table's search,

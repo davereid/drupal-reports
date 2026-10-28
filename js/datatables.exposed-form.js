@@ -14,7 +14,22 @@
 
 ((Drupal) => {
   /**
-   * Builds a labeled form item for a filter.
+   * Themes the exposed form.
+   *
+   * The items and actions are direct children of the form, as in Claro's
+   * views-exposed-form.html.twig.
+   *
+   * @return {HTMLFormElement}
+   *   The form.
+   */
+  Drupal.theme.dataTablesExposedForm = () => {
+    const form = document.createElement('form');
+    form.className = 'views-exposed-form datatables-exposed-form';
+    return form;
+  };
+
+  /**
+   * Themes a labeled form item for a filter.
    *
    * @param {string} label
    *   The label.
@@ -26,7 +41,7 @@
    * @return {HTMLElement}
    *   The form item.
    */
-  function buildItem(label, element, type) {
+  Drupal.theme.dataTablesExposedFormItem = (label, element, type) => {
     const item = document.createElement('div');
     item.className = `form-item js-form-item form-type-${type} js-form-type-${type} views-exposed-form__item`;
     const labelElement = document.createElement('label');
@@ -36,20 +51,74 @@
     labelElement.htmlFor = element.id;
     item.append(labelElement, element);
     return item;
-  }
+  };
 
   /**
-   * Builds a text field.
+   * Themes a text field.
    *
    * @return {HTMLInputElement}
    *   The field.
    */
-  function buildSearch() {
+  Drupal.theme.dataTablesExposedFormSearch = () => {
     const input = document.createElement('input');
     input.type = 'search';
     input.className = 'form-search form-element form-element--type-search';
     return input;
-  }
+  };
+
+  /**
+   * Themes a select list, with an empty "- Any -" option first.
+   *
+   * @param {string[]} values
+   *   The values, also used as the options' labels.
+   *
+   * @return {HTMLSelectElement}
+   *   The select.
+   */
+  Drupal.theme.dataTablesExposedFormSelect = (values) => {
+    const select = document.createElement('select');
+    select.className = 'form-select form-element form-element--type-select';
+    select.append(new Option(Drupal.t('- Any -'), ''));
+    values.forEach((value) => select.append(new Option(value, value)));
+    return select;
+  };
+
+  /**
+   * Themes the form's actions wrapper.
+   *
+   * @return {HTMLElement}
+   *   The wrapper.
+   */
+  Drupal.theme.dataTablesExposedFormActions = () => {
+    const actions = document.createElement('div');
+    actions.className =
+      'form-actions js-form-wrapper form-wrapper views-exposed-form__item views-exposed-form__item--actions';
+    return actions;
+  };
+
+  /**
+   * Themes a button.
+   *
+   * @param {string} label
+   *   The button text.
+   * @param {object} [options]
+   *   Options:
+   *   - type: The button type, 'button' (default) or 'submit'.
+   *   - primary: Whether it is the primary button.
+   *
+   * @return {HTMLButtonElement}
+   *   The button.
+   */
+  Drupal.theme.dataTablesButton = (
+    label,
+    { type = 'button', primary = false } = {},
+  ) => {
+    const button = document.createElement('button');
+    button.type = type;
+    button.className = `button${primary ? ' button--primary' : ''} js-form-submit form-submit`;
+    button.textContent = label;
+    return button;
+  };
 
   /**
    * Builds the filter of a column.
@@ -65,7 +134,12 @@
   function buildFilter(column, type) {
     const label = column.header().textContent.trim();
     if (type === 'search') {
-      return buildItem(label, buildSearch(), 'search');
+      return Drupal.theme(
+        'dataTablesExposedFormItem',
+        label,
+        Drupal.theme('dataTablesExposedFormSearch'),
+        'search',
+      );
     }
 
     // The cells' text, as shown, rather than their HTML.
@@ -82,11 +156,12 @@
     if (!values.length) {
       return null;
     }
-    const select = document.createElement('select');
-    select.className = 'form-select form-element form-element--type-select';
-    select.append(new Option(Drupal.t('- Any -'), ''));
-    values.forEach((value) => select.append(new Option(value, value)));
-    return buildItem(label, select, 'select');
+    return Drupal.theme(
+      'dataTablesExposedFormItem',
+      label,
+      Drupal.theme('dataTablesExposedFormSelect', values),
+      'select',
+    );
   }
 
   Drupal.dataTablesExposedForm = {
@@ -110,15 +185,19 @@
         'data-datatables-exposed-form-autosubmit',
       );
 
-      // As in Claro's views-exposed-form.html.twig, the items and actions
-      // are direct children of the form.
-      const form = document.createElement('form');
-      form.className = 'views-exposed-form datatables-exposed-form';
+      const form = Drupal.theme('dataTablesExposedForm');
       const fields = [];
 
       // The table's search, across every column, replaces DataTables' own.
-      const search = buildSearch();
-      form.append(buildItem(Drupal.t('Search'), search, 'search'));
+      const search = Drupal.theme('dataTablesExposedFormSearch');
+      form.append(
+        Drupal.theme(
+          'dataTablesExposedFormItem',
+          Drupal.t('Search'),
+          search,
+          'search',
+        ),
+      );
       fields.push({ column: dataTable, field: search, exact: false });
       dataTable.table().container().querySelector('.dt-search')?.remove();
 
@@ -145,15 +224,12 @@
         'views-exposed-form__item--preceding-actions',
       );
 
-      const submit = document.createElement('button');
-      submit.type = 'submit';
-      submit.className = 'button button--primary js-form-submit form-submit';
-      submit.textContent = Drupal.t('Filter');
+      const submit = Drupal.theme('dataTablesButton', Drupal.t('Filter'), {
+        type: 'submit',
+        primary: true,
+      });
       submit.hidden = autosubmit;
-      const reset = document.createElement('button');
-      reset.type = 'button';
-      reset.className = 'button js-form-submit form-submit';
-      reset.textContent = Drupal.t('Reset');
+      const reset = Drupal.theme('dataTablesButton', Drupal.t('Reset'));
       reset.hidden = true;
       const updateReset = () => {
         reset.hidden = !fields.some(({ column }) => column.search() !== '');
@@ -187,9 +263,7 @@
         });
       }
 
-      const actions = document.createElement('div');
-      actions.className =
-        'form-actions js-form-wrapper form-wrapper views-exposed-form__item views-exposed-form__item--actions';
+      const actions = Drupal.theme('dataTablesExposedFormActions');
       actions.append(submit, reset);
       form.append(actions);
       const container = dataTable.table().container();
@@ -197,4 +271,12 @@
       return { form, actions, fields };
     },
   };
+
+  // Added when DataTables starts on a table (datatables.js), before the
+  // listeners of scripts that depend on this library.
+  document.addEventListener('datatables:init', (event) => {
+    event.detail.exposedForm = Drupal.dataTablesExposedForm.attach(
+      event.detail.dataTable,
+    );
+  });
 })(Drupal);

@@ -85,3 +85,8 @@ A report's page is `/admin/reports/<plugin ID>`. Choose an ID that no other rout
 - `toUrl($rel, $options)` returns the URL of the report's page (`canonical`), downloads (`csv`, `xlsx`) or generation (`generate`), with its current options.
 - `getOperations()` adds buttons to the report page, next to the downloads (links the user can't access are hidden).
 - `getCacheTags()` lists the data a report is built from. Prefer list tags, such as bundle list tags (`node_list:article`), to tags of individual entities.
+
+
+## AI disclosure
+
+Most of this module's code, tests, and documentation were written with Claude Code (Anthropic's Claude Opus models), from my design and engineering decisions: the plugin API, realtime and generated reports, sheets, storage and downloads, and the DataTables integration. I directed and reviewed each change and tested it personally on both a client implementing site and an independent local site.

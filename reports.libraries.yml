@@ -23,6 +23,8 @@ report:
     # Styles item lists' list styles, e.g. comma lists in cells.
     - core/drupal.item-list
     - reports/drupal.datatables
+    # Before reports.js, so the form is in the datatables:init event's detail.
+    - reports/drupal.datatables.exposedForm
 
 # DataTables and the drupal.datatables* libraries are generic, to move to the
 # datatables module later.
@@ -33,7 +35,6 @@ drupal.datatables:
     - core/drupal
     - core/once
     - reports/DataTables
-    - reports/drupal.datatables.exposedForm
 
 drupal.datatables.exposedForm:
   css:
