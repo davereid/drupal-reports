@@ -479,6 +479,10 @@ class GeneratedReportTest extends KernelTestBase {
     // An unknown field is an error.
     $manager = $this->container->get(ReportManager::class);
     $this->assertFalse($manager->isUsable($manager->createInstance('duplicate_values', ['field' => 'entity_test.missing'])));
+    // Unique fields and entity keys other than the label can't be checked.
+    foreach (['user.name', 'user.mail', 'entity_test.type'] as $field) {
+      $this->assertFalse($manager->isUsable($manager->createInstance('duplicate_values', ['field' => $field])), $field);
+    }
     // There's no default field: one must be chosen.
     $report = $manager->createInstance('duplicate_values');
     $this->assertSame('', $report->getConfiguration()['field']);

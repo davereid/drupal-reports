@@ -7,8 +7,12 @@ namespace Drupal\reports\Plugin\Report;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Extension\Requirement\RequirementSeverity;
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\Validation\ConstraintManager;
+use Drupal\Core\Validation\Plugin\Validation\Constraint\UniqueFieldConstraint;
 use Drupal\helper\ArrayHelper;
 use Drupal\reports\Attribute\Report;
 use Drupal\reports\ReportWriter;
@@ -30,6 +34,16 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   const FIELD_TYPES = ['string', 'string_long', 'email', 'text', 'text_long', 'text_with_summary'];
 
   /**
+   * Fields whose values are shared by design, as entity type ID.field name.
+   */
+  const EXCLUDED_FIELDS = [
+    // The menu's machine name: every link in a menu shares it.
+    'menu_link_content.menu_name',
+    // Files of the same type share it.
+    'file.filemime',
+  ];
+
+  /**
    * The number of duplicate values handled per batch pass.
    */
   const VALUES_PER_PASS = 50;
@@ -38,6 +52,11 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
    * The entity field manager.
    */
   protected EntityFieldManagerInterface $entityFieldManager;
+
+  /**
+   * The validation constraint manager.
+   */
+  protected ConstraintManager $constraintManager;
 
   /**
    * The fields that can be checked, once built.
@@ -52,6 +71,7 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
     $instance = parent::create($container, [], $plugin_id, $plugin_definition);
     $instance->entityFieldManager = $container->get('entity_field.manager');
+    $instance->constraintManager = $container->get('validation.constraint');
     // The default field depends on the entity types, so set it after
     // injection.
     $instance->setConfiguration($configuration);
@@ -229,6 +249,10 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
   /**
    * Gets the fields that can be checked.
    *
+   * Leaves out entity keys other than the label, such as a string bundle
+   * field every entity shares, EXCLUDED_FIELDS, and fields that must be
+   * unique.
+   *
    * @return array<string, string>
    *   Labels like "Content: Title", keyed by entity type ID and field name,
    *   e.g. 'node.title'.
@@ -249,15 +273,38 @@ class DuplicateValues extends EntityReportBase implements GeneratedReportInterfa
         // each entity once per value.
         $storage = $storage_definitions[$field_name] ?? NULL;
         if (in_array($info['type'], static::FIELD_TYPES, TRUE) && $storage && $storage->getCardinality() === 1) {
+          if (in_array("$entity_type_id.$field_name", static::EXCLUDED_FIELDS, TRUE) || ($field_name !== $entity_type->getKey('label') && in_array($field_name, $entity_type->getKeys(), TRUE))) {
+            continue;
+          }
           // Configurable field storages have no label, so use the field's
           // label on its first bundle.
           $definition = $this->entityFieldManager->getFieldDefinitions($entity_type_id, (string) reset($info['bundles']))[$field_name] ?? NULL;
+          if ($this->isUnique($definition ?? $storage)) {
+            continue;
+          }
           $options["$entity_type_id.$field_name"] = $entity_type->getLabel() . ': ' . ((string) $definition?->getLabel() ?: $field_name);
         }
       }
     }
     asort($options);
     return $this->fieldOptions = $options;
+  }
+
+  /**
+   * Checks whether a field must be unique, such as a user's name or email.
+   *
+   * @return bool
+   *   TRUE if the field has a constraint that is or extends
+   *   UniqueFieldConstraint.
+   */
+  protected function isUnique(FieldDefinitionInterface|FieldStorageDefinitionInterface $definition): bool {
+    foreach (array_keys($definition->getConstraints()) as $name) {
+      $class = $this->constraintManager->getDefinition($name, FALSE)['class'] ?? '';
+      if (is_a($class, UniqueFieldConstraint::class, TRUE)) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
 }
